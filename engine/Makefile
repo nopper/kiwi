@@ -37,7 +37,7 @@ $(LIBINDEXER): $(LIBINDEXER_OBJ)
 	$(FINAL_AR) rcs libindexer.a $(LIBINDEXER_OBJ)
 
 %.o: %.c
-	$(FINAL_CC) -c $<
+	$(FINAL_CC) -fPIC -c $<
 
 clean:
 	rm -rf *.o $(LIBINDEXER) libindexer.a
