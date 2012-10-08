@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
+#include <assert.h>
 #include "skiplist.h"
 #include "config.h"
 #include "utils.h"
@@ -18,13 +19,15 @@ SkipList* skiplist_new(size_t max_count)
     if (!self)
         PANIC("NULL allocation");
 
-    self->hdr = malloc(SKIPNODE_SIZE + MAXLEVEL * sizeof(SkipNode*));
+    self->hdr = malloc(SKIPNODE_SIZE + SKIPLIST_MAXLEVEL * sizeof(SkipNode*));
     self->hdr->klen = 0;
+    self->hdr->level = SKIPLIST_MAXLEVEL;
+    self->level = 1;
 
     if (!self->hdr)
         PANIC("NULL allocation");
 
-    for (i = 0; i <= MAXLEVEL; i++)
+    for (i = 0; i < SKIPLIST_MAXLEVEL; i++)
         NODE_FWD_SET(self->hdr, i, self->hdr);
 
     self->max_count = max_count;
@@ -54,9 +57,9 @@ SkipNode* skiplist_new_node(SkipList* self, size_t klen, size_t *reserved, int* 
     int new_level = 0;
     size_t allocated;
 
-    for (new_level = 0; rand() < RAND_MAX/2 && new_level < MAXLEVEL; new_level++);
+    for (new_level = 0; rand() < RAND_MAX/2 && new_level < SKIPLIST_MAXLEVEL - 1; new_level++);
 
-    allocated = SKIPNODE_SIZE +        // basic header
+    allocated = SKIPNODE_SIZE +    // basic header
             sizeof(char) * klen +  // actual key val
             (new_level + 1) * sizeof(SkipNode*);
 
@@ -64,9 +67,10 @@ SkipNode* skiplist_new_node(SkipList* self, size_t klen, size_t *reserved, int* 
         PANIC("NULL allocation");
 
     *reserved = allocated;
-    *level = new_level;
+    *level = new_level + 1;
 
     x->klen = klen;
+    x->level = new_level + 1;
 
     self->last = x;
     self->last_size = allocated;
@@ -91,92 +95,119 @@ static int comparator(const char *encoded, const char *key, size_t klen)
 
 int skiplist_insert_last(SkipList* self, const char *key, size_t klen, int new_level, OPT opt)
 {
-    int i = 0, node_level = 0;
-    SkipNode* old_node = NULL;
-    SkipNode* node = self->last;
-    SkipNode* update[MAXLEVEL+1];
-    SkipNode* x;
+    SkipNode* update[SKIPLIST_MAXLEVEL];
+    SkipNode* newnode = self->last;
+
+    int set = 0;
 
     memset(update, 0, sizeof(update));
 
     if (!skiplist_notfull(self))
         return STATUS_ERR;
 
-    x = self->hdr;
-    for (i = self->level; i >= 0; i--) {
-        while (NODE_FWD(x, i) != self->hdr &&
-               cmp_lt(NODE_KEY(NODE_FWD(x, i)), key, klen))
-            x = NODE_FWD(x, i);
+    SkipNode* current = self->hdr;
+    SkipNode* sentinel = NULL;
+    int current_level = self->hdr->level;
 
-        if (!node_level)
-            node_level = i;
+    for (int i = self->level - 1; i >= 0; i--)
+    {
+        SkipNode* target = NODE_FWD(current, i);
 
-        update[i] = x;
+        while (target != self->hdr && cmp_lt(NODE_KEY(target), key, klen))
+        {
+            current = target;
+            target = NODE_FWD(current, i);
+        }
+
+        if (target != self->hdr && sentinel != target)
+        {
+            sentinel = target;
+            current_level = i + 1;
+        }
+
+        update[i] = current;
     }
 
-    x = NODE_FWD(x, 0);
-    if (x != self->hdr && cmp_eq(NODE_KEY(x), key, klen)) {
-        INFO("Comparing: %d", cmp_eq(NODE_KEY(x), key, klen));
+    SkipNode* prev = current;
+    current = NODE_FWD(current, 0);
 
+    // If this is valid we can use this directly instead of having a different field
+    assert(new_level == newnode->level);
+    assert(current_level == current->level);
+
+    if (current != self->hdr && cmp_eq(NODE_KEY(current), key, klen))
+    {
         if (opt == DEL)
         {
             INFO("Node previously inserted. Only marking it as deleted");
-            *(NODE_KEY(x) + klen) = MARK_DELETED;
+            *(NODE_KEY(current) + klen) = MARK_DELETED;
             return STATUS_OK_DEALLOC;
         }
-        // TODO if the space is smaller we can just shift the pointers down avoiding waste of space
-        else if (node->klen == x->klen)
+        else if (newnode->klen <= current->klen)
         {
-            INFO("Node previously inserted but the new object fits perfectly.");
-            memcpy(NODE_KEY(x), NODE_KEY(node), node->klen);
+            if (newnode->klen < current->klen)
+            {
+                INFO("Node previously inserted but the new object fits (smaller).");
+                int cklen = current->klen, clevel = current->level;
+                int diff = current->klen - newnode->klen;
+
+                INFO("Diff bytes: %d", diff);
+
+                self->wasted_bytes += diff;
+
+                memcpy(NODE_KEY(current) + newnode->klen, NODE_KEY(current) + cklen, sizeof(SkipNode*) * clevel);
+                memcpy(NODE_KEY(current), NODE_KEY(newnode), newnode->klen);
+                memset(NODE_KEY(current) + newnode->klen + sizeof(SkipNode*) * clevel, 'D', diff);
+                current->klen = newnode->klen;
+            }
+            else
+            {
+                INFO("Node previously inserted but the new object fits perfectly.");
+                memcpy(NODE_KEY(current), NODE_KEY(newnode), newnode->klen);
+            }
+
             return STATUS_OK_DEALLOC;
         }
         else
         {
-            INFO("Node previously inserted. Unlinking the old object");
-            INFO("Size of SkipNode: %d len: %d level: %d", SKIPNODE_SIZE, x->klen, node_level);
+            int diff = (newnode->level - current->level) * sizeof(SkipNode*);
+            self->arena->pool->memory -= diff;
+            self->arena->pool->remaining += diff;
             self->count_unused++;
-            self->wasted_bytes += x->klen + SKIPNODE_SIZE + sizeof(SkipNode*) * (node_level + 1);
+            self->wasted_bytes += current->klen + SKIPNODE_SIZE + sizeof(SkipNode*) * current->level;
 
-            if (node_level > new_level)
+            newnode->level = current->level;
+
+            for (int j = 0; j < current->level; j++)
+                NODE_FWD_SET(newnode, j, NODE_FWD(current, j));
+
+            for (int j = 0; j < prev->level; j++)
             {
-                DEBUG("Newly created node must be reallocated. %d pointer missing", node_level - new_level);
-                self->last_size += (node_level - new_level + 1) * sizeof(SkipNode*);
-                self->last = node = arena_realloc(self->arena, node, self->last_size);
-                new_level = node_level;
+                if (NODE_FWD(prev, j) == current)
+                    NODE_FWD_SET(prev, j, newnode);
             }
 
-            old_node = x;
+            set = 1;
         }
     }
 
-    if (new_level > self->level) {
-        for (i = self->level + 1; i <= new_level; i++)
+    if (newnode->level > self->level)
+    {
+        for (int i = self->level; i < newnode->level; i++)
             update[i] = self->hdr;
 
-        self->level = new_level;
+        self->level = newnode->level;
     }
 
-    x = node;
+    self->count++;
 
-    if (!old_node)
+    if (set)
+        return STATUS_OK;
+
+    for (int i = 0; i < newnode->level; i++)
     {
-        for (i = 0; i <= new_level; i++) {
-            NODE_FWD_SET(x, i, NODE_FWD(update[i], i));
-            NODE_FWD_SET(update[i], i, x);
-        }
-
-        self->count++;
-    }
-    else
-    {
-        for (i = 0; i <= new_level; i++) {
-            NODE_FWD_SET(node, i, NODE_FWD(old_node, i));
-            NODE_FWD_SET(update[i], i, node);
-        }
-
-        // TODO: remove me
-        memset(old_node, 'B', SKIPNODE_SIZE + old_node->klen + (new_level) * sizeof(SkipNode*));
+        NODE_FWD_SET(newnode, i, NODE_FWD(update[i], i));
+        NODE_FWD_SET(update[i], i, newnode);
     }
 
     return STATUS_OK;
@@ -187,9 +218,13 @@ SkipNode* skiplist_last(SkipList* self)
     int i;
     SkipNode* x = self->hdr;
 
-    for (i = self->level; i >= 0; i--) {
-        while (NODE_FWD(x, i) != self->hdr)
-            x = NODE_FWD(x, i);
+    for (i = self->level - 1; i >= 0; i--) {
+        SkipNode* target = NODE_FWD(x, i);
+        while (target != self->hdr)
+        {
+            x = target;
+            target = NODE_FWD(x, i);
+        }
     }
 
     return x;
@@ -205,7 +240,7 @@ SkipNode* skiplist_lookup(SkipList* self, char* key, size_t klen)
     int i;
     SkipNode* x = self->hdr;
 
-    for (i = self->level; i >= 0; i--) {
+    for (i = self->level - 1; i >= 0; i--) {
         while (NODE_FWD(x, i) != self->hdr &&
                cmp_lt(NODE_KEY(NODE_FWD(x, i)), key, klen))
             x = NODE_FWD(x, i);

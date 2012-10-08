@@ -6,11 +6,11 @@
 #include "arena.h"
 #include "config.h"
 
-#define MAXLEVEL (15)
-#define SKIPNODE_SIZE (sizeof(size_t))
+#define SKIPLIST_MAXLEVEL (15)
+#define SKIPNODE_SIZE (sizeof(size_t) * 2)
 // This macro is used to support non-fixed size key length
 
-#define NODE_KEY(node)      ( (((unsigned char *)node) + sizeof(size_t)) )
+#define NODE_KEY(node)      ( (((unsigned char *)node) + sizeof(size_t) + sizeof(size_t)) )
 
 #define MARK_DELETED 0x1
 #define MARK_ADDED   0x0
@@ -29,6 +29,7 @@ typedef enum {ADD,DEL} OPT;
  */
 typedef struct _skipnode {
     size_t klen;
+    size_t level;
     //char mem[1];
 } SkipNode;
 
