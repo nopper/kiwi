@@ -1,0 +1,34 @@
+arena.o: arena.c arena.h indexer.h config.h
+buffer.o: buffer.c buffer.h indexer.h config.h utils.h variant.h
+compaction.o: compaction.c compaction.h variant.h buffer.h vector.h sst.h \
+ indexer.h config.h skiplist.h arena.h sst_loader.h lib/kvec.h file.h \
+ sst_builder.h sst_block_builder.h merger.h heap.h utils.h
+crc32.o: crc32.c crc32.h indexer.h config.h utils.h variant.h buffer.h
+db.o: db.c db.h indexer.h config.h sst.h skiplist.h arena.h sst_loader.h \
+ lib/kvec.h file.h buffer.h variant.h sst_builder.h sst_block_builder.h \
+ vector.h memtable.h
+file.o: file.c file.h indexer.h config.h buffer.h
+generated.o: generated.c
+heap.o: heap.c heap.h
+indexer.o: indexer.c indexer.h config.h
+main.o: main.c db.h indexer.h config.h sst.h skiplist.h arena.h \
+ sst_loader.h lib/kvec.h file.h buffer.h variant.h sst_builder.h \
+ sst_block_builder.h vector.h memtable.h generated.c
+memtable.o: memtable.c memtable.h skiplist.h arena.h config.h variant.h \
+ buffer.h utils.h indexer.h
+merger.o: merger.c compaction.h variant.h buffer.h vector.h sst.h \
+ indexer.h config.h skiplist.h arena.h sst_loader.h lib/kvec.h file.h \
+ sst_builder.h sst_block_builder.h merger.h heap.h utils.h
+skiplist.o: skiplist.c skiplist.h arena.h config.h utils.h variant.h \
+ buffer.h indexer.h
+sst.o: sst.c sst.h indexer.h config.h skiplist.h arena.h sst_loader.h \
+ lib/kvec.h file.h buffer.h variant.h sst_builder.h sst_block_builder.h \
+ vector.h memtable.h utils.h heap.h compaction.h merger.h
+sst_block_builder.o: sst_block_builder.c sst_block_builder.h lib/kvec.h \
+ buffer.h variant.h indexer.h config.h
+sst_builder.o: sst_builder.c sst_builder.h indexer.h config.h file.h \
+ buffer.h sst_block_builder.h lib/kvec.h variant.h crc32.h
+sst_loader.o: sst_loader.c sst_loader.h lib/kvec.h file.h indexer.h \
+ config.h buffer.h variant.h utils.h crc32.h
+utils.o: utils.c utils.h variant.h buffer.h indexer.h config.h
+vector.o: vector.c vector.h

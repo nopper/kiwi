@@ -1,0 +1,21 @@
+- Crea un test per memtable in cui si fa:
+
+    Nel primo test si aggiunge una chiave, si distrugge, e si riaggiunge ma con un valore decisamente piu lungo. Dovremmo delinkare lo skipnode vecchio dalla skiplist ma nonostante questo contarlo come wasted space in un contatore apposito.
+
+        Put(a, b)
+        Del(a)
+        Put(a, bcdasds)
+
+        Nel secondo test si aggiunge una chiave, si distrugge, e si riaggiunge ma con un valore piu piccolo. Dovrebbe succedere lo stesso che nel caso precedente dato che klen determina il punto in cui inizia il forward pointer.
+
+        Put(a, abcd)
+        Del(a)
+        Put(a, ab)
+
+        Nell'ultimo test si aggiunge una chiave, si distrugge, e si riaggiunge un valore con la stessa lunghezza del precedente. In questo caso l'aggiornamento in place dovrebbe funzionare.
+
+- Muovi il comparator fuori dalla skiplist
+- get rid of kvec
+- scanna tutti i file .twt estrai informazioni degli utenti, in seguito parsa i followers e costruisci le relazioni
+- compaction_install > add_file > schedule_compaction > esaurimento stack
+- controlla anche sull'utilizzo della memoria dell'arena/pool per triggerare la compaction
