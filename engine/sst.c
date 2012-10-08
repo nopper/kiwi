@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
+#include <inttypes.h>
 #include <assert.h>
 #include "sst.h"
 #include "memtable.h"
@@ -36,6 +37,7 @@ static uint64_t _size_for_level(SST* self, uint32_t level)
     uint64_t size = 0;
     for (uint32_t i = 0; i < self->num_files[level]; i++)
         size += (self->files[level][i])->filesize;
+    INFO("Total bytes in level %d = %" PRIu64, level, size);
     return size;
 }
 
@@ -163,7 +165,7 @@ static int _read_manifest(SST* self)
 
     File* file;
     SSTMetadata* meta;
-    uint32_t curr_level, curr_num;
+    uint32_t curr_level = 0, curr_num = 0;
 
     start = get_varint32(start, start + 5, &self->last_id);
 
@@ -194,12 +196,13 @@ static int _read_manifest(SST* self)
             buffer_putnstr(meta->largest_key, start, len);
             start += len;
 
-            INFO("Loading SST file %s for level %d", file->filename, curr_level);
+            INFO("Loading SST file %s for level %d %ld bytets", file->filename, curr_level, file_size(file));
             INFO("Smallest key: %.*s Largest key: %.*s",
                  meta->smallest_key->length, meta->smallest_key->mem,
                  meta->largest_key->length, meta->largest_key->mem);
 
             meta->loader = sst_loader_new(file, curr_level, curr_num);
+            meta->filesize = file_size(file);
 
             if (meta->loader)
             {
