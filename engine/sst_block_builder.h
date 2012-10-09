@@ -38,6 +38,7 @@ typedef struct _sst_block_builder {
     unsigned int flags;
     unsigned int restart_interval;
     unsigned int counter;
+    unsigned int entries;
 
     Variant* last_key;
     kvec_t(size_t) restarts;

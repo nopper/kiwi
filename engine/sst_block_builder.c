@@ -12,6 +12,7 @@ SSTBlockBuilder* sst_block_builder_new(uint32_t flags, uint32_t restart_interval
     self->flags = flags;
     self->restart_interval = restart_interval;
     self->counter = 0;
+    self->entries = 0;
 
     // Allocate enough space to avoid reallocations
     self->last_key = buffer_new(1024);
@@ -70,6 +71,7 @@ void sst_block_builder_add(SSTBlockBuilder* self, Variant* key, Variant* value)
     buffer_putnstr(self->last_key, key->mem + shared, non_shared);
 
     self->counter++;
+    self->entries++;
 }
 
 size_t sst_block_builder_current_size(SSTBlockBuilder* self)
@@ -101,4 +103,7 @@ void sst_block_builder_reset(SSTBlockBuilder* self)
     buffer_clear(self->buffer);
     buffer_clear(self->last_key);
     kv_reset(self->restarts);
+
+    self->counter = 0;
+    self->entries = 0;
 }
