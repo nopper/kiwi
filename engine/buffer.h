@@ -12,6 +12,7 @@ typedef struct buffer {
 
 Buffer* buffer_new(size_t reserve);
 void buffer_free(Buffer* self);
+void buffer_extend_by(Buffer* self, size_t len);
 
 void buffer_clear(Buffer* self);
 char *buffer_detach(Buffer* self);
