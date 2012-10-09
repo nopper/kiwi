@@ -170,9 +170,20 @@ int skiplist_insert_last(SkipList* self, const char *key, size_t klen, int new_l
         }
         else
         {
-            int diff = (newnode->level - current->level) * sizeof(SkipNode*);
-            self->arena->pool->memory -= diff;
-            self->arena->pool->remaining += diff;
+            int diff;
+            if (newnode->level > current->level)
+            {
+                diff = (newnode->level - current->level) * sizeof(SkipNode*);
+                self->arena->pool->memory -= diff;
+                self->arena->pool->remaining += diff;
+            }
+            else
+            {
+                diff = (current->level - newnode->level) * sizeof(SkipNode*);
+                self->arena->pool->memory += diff;
+                self->arena->pool->remaining -= diff;
+            }
+
             self->count_unused++;
             self->wasted_bytes += current->klen + SKIPNODE_SIZE + sizeof(SkipNode*) * current->level;
 
@@ -199,10 +210,10 @@ int skiplist_insert_last(SkipList* self, const char *key, size_t klen, int new_l
         self->level = newnode->level;
     }
 
-    self->count++;
-
     if (set)
         return STATUS_OK;
+
+    self->count++;
 
     for (int i = 0; i < newnode->level; i++)
     {
@@ -216,18 +227,16 @@ int skiplist_insert_last(SkipList* self, const char *key, size_t klen, int new_l
 SkipNode* skiplist_last(SkipList* self)
 {
     int i;
-    SkipNode* x = self->hdr;
+    SkipNode* current = self->hdr;
 
     for (i = self->level - 1; i >= 0; i--) {
-        SkipNode* target = NODE_FWD(x, i);
-        while (target != self->hdr)
+        while (NODE_FWD(current, i) != self->hdr)
         {
-            x = target;
-            target = NODE_FWD(x, i);
+            current = NODE_FWD(current, i);
         }
     }
 
-    return x;
+    return current;
 }
 
 SkipNode* skiplist_first(SkipList* self)
