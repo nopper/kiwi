@@ -42,7 +42,7 @@ static int _load_index(SSTLoader* self, uint64_t offset, uint64_t size)
 
     if (actual_crc32 != block_crc32)
     {
-        ERROR("Data block seems to be corrupted. Data CRC: %X Block CRC: %X",
+        ERROR("Index block seems to be corrupted. Data CRC: %X Block CRC: %X",
               actual_crc32, block_crc32);
         return 0;
     }
@@ -99,6 +99,34 @@ static int _read_footer(SSTLoader* self)
     DEBUG("Index @ offset: %" PRIu64 " size: %" PRIu64, index_off, index_sz);
     DEBUG("Meta Block @ offset: %" PRIu64 " size: %" PRIu64, meta_off, meta_sz);
 
+    start = self->file->base + meta_off;
+
+    self->data_size = get_int64(start); start+=8;
+    self->index_size = get_int64(start); start+=8;
+    self->key_size = get_int64(start); start+=8;
+    self->num_blocks = get_int64(start); start+=8;
+    self->num_entries = get_int64(start); start+=8;
+    self->value_size = get_int64(start); start+=8;
+
+#ifdef WITH_BLOOM_FILTER
+    self->filter_size = get_int64(start); start+=8;
+    self->bloom_off = get_int64(start); start+=8;
+    self->bloom_size = get_int64(start); start+=8;
+#endif
+
+    INFO("Data size:        %" PRIu64, self->data_size);
+
+    INFO("Index size:       %" PRIu64, self->index_size);
+    INFO("Key size:         %" PRIu64, self->key_size);
+    INFO("Num blocks size:  %" PRIu64, self->num_blocks);
+    INFO("Num entries size: %" PRIu64, self->num_entries);
+    INFO("Value size:       %" PRIu64, self->value_size);
+
+#ifdef WITH_BLOOM_FILTER
+    INFO("Filter size:      %" PRIu64, self->filter_size);
+    INFO("Bloom offset %" PRIu64 " size: %" PRIu64, self->bloom_off, self->bloom_size);
+#endif
+
     // TODO: probably here we should load the first string from the file
     // in order to know the (start, stop) interval the file ranges
 
@@ -110,7 +138,7 @@ static int _read_footer(SSTLoader* self)
 
 SSTLoader* sst_loader_new(File* file, uint32_t level, uint32_t filenum)
 {
-    SSTLoader* self = malloc(sizeof(SSTLoader));
+    SSTLoader* self = calloc(1, sizeof(SSTLoader));
 
     if (!self)
         PANIC("NULL allocation");
@@ -157,7 +185,7 @@ IndexEntry* _get_index_entry(SSTLoader* self, Variant* key)
         entry = kv_A(self->index, mid);
 
         ret = string_cmp(entry->key, key->mem, entry->klen, key->length);
-        INFO("[1 of 3] L: %d R: %d M: %d Comparing: %.*s %.*s = %d", left, right, mid, entry->klen, entry->key, key->length, key->mem, ret);
+//        DEBUG("[1 of 3] L: %d R: %d M: %d Comparing: %.*s %.*s = %d", left, right, mid, entry->klen, entry->key, key->length, key->mem, ret);
 
         if (ret < 0) // block < key
             left = mid + 1;
@@ -166,7 +194,44 @@ IndexEntry* _get_index_entry(SSTLoader* self, Variant* key)
     }
 
     entry = kv_A(self->index, left);
-    INFO("[1 of 3] Key %.*s is contained in block <= %.*s", key->length, key->mem, entry->klen, entry->key);
+//    DEBUG("[1 of 3] Key %.*s is contained in block <= %.*s", key->length, key->mem, entry->klen, entry->key);
+
+#ifdef WITH_BLOOM_FILTER
+    // Check the bloom filter and see if the key is not inside this block
+
+    char *position = self->file->base +
+            self->bloom_off + self->bloom_size -
+            sizeof(uint32_t) - // Remove count
+            (sizeof(uint32_t) * self->num_blocks) +
+            (sizeof(uint32_t) * left);
+
+    uint32_t offset = get_int32(position);
+    uint32_t next_offset = self->bloom_size - sizeof(uint32_t) * (self->num_blocks + 1);
+
+    if (left < self->num_blocks - 1)
+        next_offset = get_int32(position + sizeof(uint32_t));
+
+    INFO("Bloom filter for block %d left starts at off + %d (%d bytes)", left, offset, next_offset - offset);
+
+    char* array = self->file->base + self->bloom_off + offset;
+    size_t bits = (next_offset - offset) * 8;// -1) ?
+
+    uint32_t h = hash(key->mem, key->length, 0xbc9f1d34);
+    const uint32_t delta = (h >> 17) | (h << 15);  // Rotate right 17 bits
+
+    DEBUG("Hash of %.*s = %d", key->length, key->mem, h);
+
+    for (size_t j = 0; j < NUM_PROBES; j++)
+    {
+        const uint32_t bitpos = h % bits;
+        if ((array[bitpos / 8] & (1 << (bitpos % 8))) == 0)
+        {
+            INFO("Bloom filters match!");
+            return NULL;
+        }
+        h += delta;
+    }
+#endif
 
     return entry;
 }
@@ -175,13 +240,16 @@ int sst_loader_get(SSTLoader* self, Variant* key, Variant* value)
 {
     IndexEntry *entry = _get_index_entry(self, key);
 
+    if (!entry)
+        return 0;
+
     int ret;
     char *start = NULL, *stop = NULL, *iter;
     _read_block(self, entry->offset, entry->size, &start, &stop);
 
     uint32_t num_restarts = get_int32(stop - sizeof(uint32_t));
     stop -= sizeof(uint32_t) * (num_restarts + 1);
-    INFO("There are %d restart points in this data block", num_restarts);
+//    INFO("There are %d restart points in this data block", num_restarts);
 
     // [start - stop] points to the actual data, not the restarts array
     uint32_t left = 0;
@@ -199,7 +267,7 @@ int sst_loader_get(SSTLoader* self, Variant* key, Variant* value)
         iter = (char *)get_varint32(iter, iter + 5, &vlen);
 
         ret = string_cmp(iter, key->mem, klen, key->length);
-        INFO("[2 of 3] Comparing: L: %d R: %d M: %d %.*s %.*s = %d", left, right, mid, klen, iter, key->length, key->mem, ret);
+//        DEBUG("[2 of 3] Comparing: L: %d R: %d M: %d %.*s %.*s = %d", left, right, mid, klen, iter, key->length, key->mem, ret);
 
         if (ret <= 0) // restart < key => might be ok
             left = mid;
@@ -207,7 +275,7 @@ int sst_loader_get(SSTLoader* self, Variant* key, Variant* value)
             right = mid - 1;
     }
 
-    INFO("Left is %d Right is %d", left, right);
+//    DEBUG("Left is %d Right is %d", left, right);
     buffer_clear(value);
 
     if (ret == 0)
@@ -225,7 +293,7 @@ int sst_loader_get(SSTLoader* self, Variant* key, Variant* value)
         iter = (char *)get_varint32(iter, iter + 5, &klen);
         iter = (char *)get_varint32(iter, iter + 5, &vlen);
 
-        DEBUG("plen: %d vlen: %d", plen, vlen);
+//        DEBUG("plen: %d vlen: %d", plen, vlen);
 
         value->length = plen;
         buffer_putnstr(value, iter, klen);
@@ -234,7 +302,7 @@ int sst_loader_get(SSTLoader* self, Variant* key, Variant* value)
 
         iter += klen + vlen;
 
-        INFO("Comparing %.*s with %.*s = %d", key->length, key->mem, value->length, value->mem, ret);
+//        DEBUG("Comparing %.*s with %.*s = %d", key->length, key->mem, value->length, value->mem, ret);
     } while (ret < 0 && iter < stop);
 
     buffer_clear(value);

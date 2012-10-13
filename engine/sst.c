@@ -59,9 +59,18 @@ static void _evaluate_compaction(SST* self)
 
     for (uint32_t level = 0; level < MAX_LEVELS; level++)
     {
-        double score = (level == 0) ?
-            score = self->num_files[0] / MAX_FILES_LEVEL0 :
-            (double)_size_for_level(self, level) / _max_size_for_level(level);
+        double score;
+
+        if (level == 0)
+        {
+            score = self->num_files[0] / MAX_FILES_LEVEL0;
+        }
+        else
+        {
+            score = (double)_size_for_level(self, level) / _max_size_for_level(level);
+        }
+
+        INFO("Score for level %d is %.3f", level, (float)score);
 
         if (score > comp_score)
         {
@@ -460,7 +469,7 @@ int sst_get(SST* self, Variant* key, Variant* value)
 
         for (uint32_t i = 0; i < vector_count(self->targets); i++)
         {
-            INFO("Looking for key %.*s inside %s", key->length, key->mem, ((SSTMetadata*)vector_get(self->targets, i))->loader->file->filename);
+//            DEBUG("Looking for key %.*s inside %s", key->length, key->mem, ((SSTMetadata*)vector_get(self->targets, i))->loader->file->filename);
 
             if (sst_loader_get(((SSTMetadata*)vector_get(self->targets, i))->loader, key, value) == 1)
                 return 1;

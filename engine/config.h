@@ -11,12 +11,12 @@
 #define LEVEL_WARNING 2
 #define LEVEL_ERROR   3
 
-#define RESTART_INTERVAL 100
+#define RESTART_INTERVAL 16
 #define SKIPLIST_SIZE 1024 * 1024 * 100// Actually this is not the memory occupation
 #define MAX_SKIPLIST_ALLOCATION 1024 * 1024 * 100
 
 #define POOL_SIZE 1024 * 8
-#define BLOCK_SIZE 1024 * 1024 // Assuming 1MB block
+#define BLOCK_SIZE 4096
 #define START_MAP_SIZE 1024
 
 #define START_DIRECTORY "/tmp"
@@ -32,5 +32,9 @@
 #define EXPANSION_LIMIT 15 * 2 * 1048576
 #define GRANDPARENT_OVERLAP 10 * 2 * 1048576
 #define MAX_MEM_COMPACT_LEVEL 2
+
+//#define WITH_BLOOM_FILTER
+#define BITS_PER_KEY 10
+#define NUM_PROBES 7
 
 #endif

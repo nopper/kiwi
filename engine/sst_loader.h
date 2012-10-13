@@ -19,6 +19,10 @@ typedef struct _index_entry {
 typedef struct _sst_loader {
     uint32_t level;
     uint32_t filenum;
+
+    uint64_t bloom_off, bloom_size;
+    uint64_t data_size, filter_size, index_size, key_size, num_blocks, num_entries, value_size;
+
     File* file;
     kvec_t(IndexEntry*) index;
 } SSTLoader;

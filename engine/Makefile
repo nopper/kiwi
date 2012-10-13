@@ -8,6 +8,8 @@ LIBINDEXER_OBJ = \
 	sst_builder.o \
 	sst_loader.o \
 	sst_block_builder.o \
+	hash.o \
+	bloom_builder.o \
 	merger.o \
 	compaction.o \
 	skiplist.o \

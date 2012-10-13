@@ -60,49 +60,100 @@ static void _write_block(SSTBuilder* self, SSTBlockBuilder* block)
     buffer_clear(self->last_block_offset);
     buffer_putvarint64(self->last_block_offset, self->offset);
 
-    DEBUG("Block @ offset: 0x%X crc32: %u", self->offset, crc32);
-    self->offset += block->buffer->length;
+//    DEBUG("Block @ offset: 0x%X crc32: %u", self->offset, crc32);
 
+#ifdef WITH_BLOOM_FILTER
+    if (block == self->data_block)
+        bloom_builder_generate(self->bloom, self->offset, self->data_block);
+#endif
+
+    self->offset += block->buffer->length;
     buffer_putvarint64(self->last_block_offset, block->buffer->length);
 }
 
 static void _sst_builder_flush(SSTBuilder* self)
 {
     if (!self->block_written)
+    {
         _write_block(self, self->data_block);
+        self->metadata_num_blocks++;
+    }
+
     self->block_written = 1;
     self->pending_index = 1;
     self->needs_reset = 1;
 }
 
-static void _sst_builder_finish(SSTBuilder* self)
+static void _write_footer(SSTBuilder* self)
 {
-    _sst_builder_flush(self);
+    self->metadata_data_size = self->offset;
+
+#ifdef WITH_BLOOM_FILTER
+    // First write the bloom filter than all the statistics
+    bloom_builder_finish(self->bloom);
+
+    size_t bloom_off = self->offset;
+    size_t bloom_size = self->bloom->buff->length;
+    file_append(self->file, self->bloom->buff);
+    self->offset += bloom_size;
+
+    self->metadata_filter_size = self->bloom->buff->length;
+#endif
 
     // Here just save as indexing term the last key and then we save the index block
     sst_block_builder_add(self->index_block, self->data_block->last_key, self->last_block_offset);
 
-    size_t offset = self->offset;
-    _write_block(self, self->index_block);
-
-    // Here we need to write the block footer. We use last key as a temporary buffer
+    // Write the actual metadata
     buffer_clear(self->last_key);
+    buffer_putint64(self->last_key, self->metadata_data_size);
+    buffer_putint64(self->last_key, self->metadata_index_size);
+    buffer_putint64(self->last_key, self->metadata_key_size);
+    buffer_putint64(self->last_key, self->metadata_num_blocks);
+    buffer_putint64(self->last_key, self->metadata_num_entries);
+    buffer_putint64(self->last_key, self->metadata_value_size);
 
-//    DEBUG("Index block @ offset: 0x%X size: %u",
-//          offset, self->index_block->buffer->length);
+#ifdef WITH_BLOOM_FILTER
+    buffer_putint64(self->last_key, self->metadata_filter_size);
+    buffer_putint64(self->last_key, bloom_off);
+    buffer_putint64(self->last_key, bloom_size);
+#endif
 
-    // Index position
-    buffer_putint64(self->last_key, offset);
-    buffer_putint64(self->last_key, self->index_block->buffer->length);
-
-    // Metablock position
-    buffer_putint64(self->last_key, 0);
-    buffer_putint64(self->last_key, 0);
-
-    // Magic string
-    buffer_putnstr(self->last_key, MAGIC_STR, 8);
+    size_t meta_off = self->offset;
+    size_t meta_size = self->last_key->length;
 
     file_append(self->file, self->last_key);
+    self->offset += meta_size;
+
+    size_t index_off = self->offset;
+    _write_block(self, self->index_block);
+
+    size_t index_size = self->index_block->buffer->length;
+    self->metadata_index_size = index_size;
+
+    DEBUG("Index block @ offset: 0x%X size: %u", index_off, index_size);
+    DEBUG("Meta block @ offset: 0x%X size: %u", meta_off, meta_size);
+
+#ifdef WITH_BLOOM_FILTER
+    DEBUG("Bloom block @ offset: 0x%X size: %u", bloom_off, bloom_size);
+#endif
+
+    buffer_clear(self->last_key);
+    buffer_putint64(self->last_key, index_off);
+    buffer_putint64(self->last_key, index_size);
+    buffer_putint64(self->last_key, meta_off);
+    buffer_putint64(self->last_key, meta_size);
+
+    file_append(self->file, self->last_key);
+}
+
+static void _sst_builder_finish(SSTBuilder* self)
+{
+    _sst_builder_flush(self);
+    _write_footer(self);
+
+    buffer_putnstr(self->last_key, MAGIC_STR, 8);
+    file_append(self->file, self->last_key);
+
     file_close(self->file);
 }
 
@@ -117,6 +168,18 @@ SSTBuilder* sst_builder_new(File* file)
     self->pending_index = 0;
     self->needs_reset = 0;
     self->offset = 0;
+
+    self->metadata_data_size = 0;
+    self->metadata_index_size = 0;
+    self->metadata_key_size = 0;
+    self->metadata_num_blocks = 0;
+    self->metadata_num_entries = 0;
+    self->metadata_value_size = 0;
+
+#ifdef WITH_BLOOM_FILTER
+    self->metadata_filter_size= 0;
+    self->bloom = bloom_builder_new(BITS_PER_KEY);
+#endif
 
     self->last_key = buffer_new(1024);
     // Just 5 bytes are sufficient to store a file offset as a varint32
@@ -137,6 +200,10 @@ void sst_builder_free(SSTBuilder* self)
 
     buffer_free(self->last_key);
     buffer_free(self->last_block_offset);
+
+#ifdef WITH_BLOOM_FILTER
+    bloom_builder_free(self->bloom);
+#endif
 
     free(self);
 }
@@ -162,6 +229,10 @@ void sst_builder_add(SSTBuilder* self, Variant* key, Variant* value)
     }
 
     sst_block_builder_add(self->data_block, key, value);
+
+    self->metadata_num_entries++;
+    self->metadata_key_size += key->length;
+    self->metadata_value_size += value->length;
 
     if (sst_block_builder_current_size(self->data_block) >= BLOCK_SIZE)
     {
