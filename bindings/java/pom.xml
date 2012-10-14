@@ -1,0 +1,27 @@
+<project>
+
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.kv.kiwi</groupId>
+  <artifactId>parentProject</artifactId>
+  <version>1.0-SNAPSHOT</version>
+  <name>Blueprints implementation for Kiwi database</name>
+
+  <packaging>pom</packaging>
+  <modules>
+    <module>java</module>
+    <module>native</module>
+    <module>bluekiwi</module>
+  </modules>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.codehaus.mojo</groupId>
+          <artifactId>native-maven-plugin</artifactId>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
+
+</project>

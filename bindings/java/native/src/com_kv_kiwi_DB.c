@@ -2,11 +2,11 @@
 #include <stdlib.h>
 #include "db.h"
 #include "variant.h"
-#include "com_kv_indexer_DB.h"
+#include "com_kv_kiwi_DB.h"
 
 DB* _db = NULL;
 
-JNIEXPORT jint JNICALL Java_com_kv_Indexer_DB_open(JNIEnv* jenv, jobject jclass, jstring jpath)
+JNIEXPORT jint JNICALL Java_com_kv_kiwi_DB_open(JNIEnv* jenv, jobject jclass, jstring jpath)
 {
     (void)jclass;
     int ret = 0;
@@ -26,7 +26,7 @@ JNIEXPORT jint JNICALL Java_com_kv_Indexer_DB_open(JNIEnv* jenv, jobject jclass,
     return ret;
 }
 
-JNIEXPORT jint JNICALL Java_com_kv_Indexer_DB_add(JNIEnv *jenv, jobject jclass, jbyteArray jkey, jint jklen, jbyteArray jval, jint jvlen)
+JNIEXPORT jint JNICALL Java_com_kv_kiwi_DB_add(JNIEnv *jenv, jobject jclass, jbyteArray jkey, jint jklen, jbyteArray jval, jint jvlen)
 {
     (void)jclass;
     Variant key, value;
@@ -35,15 +35,18 @@ JNIEXPORT jint JNICALL Java_com_kv_Indexer_DB_add(JNIEnv *jenv, jobject jclass, 
     if (!_db)
         return ret;
 
-    key.mem = (char*)(*jenv)->GetByteArrayElements(jenv, jkey, 0);
+    key.mem = (char *)(*jenv)->GetByteArrayElements(jenv, jkey, 0);
     key.length = jklen;
 
-    value.mem = (char*)(*jenv)->GetByteArrayElements(jenv, jval, 0);
+    value.mem = (char *)(*jenv)->GetByteArrayElements(jenv, jval, 0);
     value.length = jvlen;
 
 
-    if (key.mem != NULL || value.mem != NULL)
+    if (key.mem == NULL || value.mem == NULL)
+    {
+    	fprintf(stderr, "Empty arrays\n");
         goto RET;
+    }
 
     ret = db_add(_db, &key, &value);
 
@@ -58,37 +61,38 @@ RET:
     return ret;
 }
 
-JNIEXPORT jint JNICALL Java_com_kv_Indexer_DB_get(JNIEnv *jenv, jobject jclass, jbyteArray jkey, jint jklen, jbyteArray jval)
+JNIEXPORT jbyteArray JNICALL Java_com_kv_kiwi_DB_get(JNIEnv *jenv, jobject jclass, jbyteArray jkey, jint jklen)
 {
     (void)jclass;
-    int ret = 0;
+    int ret;
+    jbyteArray arr = NULL;
     Variant key;
 
     if (!_db)
-        return ret;
+        return arr;
 
     key.mem = (char*)(*jenv)->GetByteArrayElements(jenv, jkey, 0);
     if (key.mem == NULL)
-        return ret;
+        return arr;
 
     key.length = jklen;
 
     Variant* value = buffer_new(255);
 
     ret = db_get(_db, &key, value);
-
-    if (value->length > 0)
-        (*jenv)->SetByteArrayRegion(jenv, jval, 0, value->length, (jbyte*)value->mem);
+    
+    if ((ret == 1) && (value->length > 0))
+    {
+    	arr = (*jenv)->NewByteArray(jenv, value->length);
+    	(*jenv)->SetByteArrayRegion(jenv, arr, 0, value->length, value->mem);
+    }
 
     buffer_free(value);
 
-    /* release */
-    (*jenv)->ReleaseByteArrayElements(jenv, jkey, (jbyte*)key.mem, 0);
-
-    return ret;
+    return arr;
 }
 
-JNIEXPORT jint JNICALL Java_com_kv_Indexer_DB_remove(JNIEnv *jenv, jobject jclass, jbyteArray jkey, jint jklen)
+JNIEXPORT jint JNICALL Java_com_kv_kiwi_DB_remove(JNIEnv *jenv, jobject jclass, jbyteArray jkey, jint jklen)
 {
     (void)jclass;
     Variant key;
@@ -111,14 +115,17 @@ JNIEXPORT jint JNICALL Java_com_kv_Indexer_DB_remove(JNIEnv *jenv, jobject jclas
     return ret;
 }
 
-JNIEXPORT void JNICALL Java_com_kv_Indexer_DB_close(JNIEnv *jenv, jobject jclass)
+JNIEXPORT jint JNICALL Java_com_kv_kiwi_DB_close(JNIEnv* jenv, jobject jclass)
 {
     (void)jenv;
     (void)jclass;
+    int ret = 1;
 
     if (_db)
     {
         db_close(_db);
         _db = NULL;
     }
+    
+    return ret;
 }
