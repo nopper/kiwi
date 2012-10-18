@@ -9,7 +9,8 @@ currentpath = os.path.abspath(os.path.dirname(__file__))
 rootpath = os.path.abspath(os.path.join(currentpath, '..', '..'))
 sources = glob.glob(os.path.join(rootpath, 'engine/*.c'))
 
-os.environ["CFLAGS"] = "-Wno-strict-prototypes -std=c99 -I%s/engine" % rootpath
+os.environ["CFLAGS"] = "-Wno-strict-prototypes -std=c99 -I%s/engine -ggdb -O0" % rootpath
+#os.environ["CFLAGS"] = "-Wno-strict-prototypes -std=c99 -I%s/engine -O3" % rootpath
 
 ext_indexer = Extension('_indexer',
                         include_dirrs=[os.path.join(rootpath, 'engine')],

@@ -78,11 +78,113 @@ pyindexer_db_close(PyObject *self, PyObject *args)
     return Py_None;
 }
 
+static PyObject *
+pyindexer_db_iterator_new(PyObject *self, PyObject *args)
+{
+    long db=0;
+
+    if (!PyArg_ParseTuple(args, "l", &db))
+        return NULL;
+
+    DBIterator* iter = db_iterator_new((DB*)db);
+    return Py_BuildValue("l", iter);
+}
+
+static PyObject *
+pyindexer_db_iterator_seek(PyObject *self, PyObject *args)
+{
+    Variant key;
+    long iter;
+
+    if (!PyArg_ParseTuple(args, "ls#", &iter, &key.mem, &key.length))
+        return NULL;
+
+    db_iterator_seek((DBIterator*)iter, &key);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+pyindexer_db_iterator_next(PyObject *self, PyObject *args)
+{
+    long iter;
+
+    if (!PyArg_ParseTuple(args, "l", &iter))
+        return NULL;
+
+    db_iterator_next((DBIterator*)iter);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
+static PyObject *
+pyindexer_db_iterator_valid(PyObject *self, PyObject *args)
+{
+    long iter;
+
+    if (!PyArg_ParseTuple(args, "l", &iter))
+        return NULL;
+
+    if (db_iterator_valid((DBIterator*)iter))
+        Py_RETURN_TRUE;
+
+    Py_RETURN_FALSE;
+}
+
+static PyObject *
+pyindexer_db_iterator_key(PyObject *self, PyObject *args)
+{
+    long iter;
+
+    if (!PyArg_ParseTuple(args, "l", &iter))
+        return NULL;
+
+    Variant* value = db_iterator_key((DBIterator*)iter);
+    PyObject *obj = PyString_FromStringAndSize(value->mem, value->length);
+    return obj;
+}
+
+static PyObject *
+pyindexer_db_iterator_value(PyObject *self, PyObject *args)
+{
+    long iter;
+
+    if (!PyArg_ParseTuple(args, "l", &iter))
+        return NULL;
+
+    Variant* value = db_iterator_value((DBIterator*)iter);
+    PyObject *obj = PyString_FromStringAndSize(value->mem, value->length);
+    return obj;
+}
+
+static PyObject *
+pyindexer_db_iterator_free(PyObject *self, PyObject *args)
+{
+    long iter;
+
+    if (!PyArg_ParseTuple(args, "l", &iter))
+        return NULL;
+
+    db_iterator_free((DBIterator *)iter);
+
+    Py_INCREF(Py_None);
+    return Py_None;
+}
+
 static PyMethodDef IndexerMethods[] = {
     {"db_open",  pyindexer_db_open, METH_VARARGS,""},
     {"db_add",  pyindexer_db_add, METH_VARARGS,""},
     {"db_remove",  pyindexer_db_remove, METH_VARARGS,""},
     {"db_get",  pyindexer_db_get, METH_VARARGS,""},
+    {"db_iterator_new",  pyindexer_db_iterator_new, METH_VARARGS,""},
+    {"db_iterator_seek",  pyindexer_db_iterator_seek, METH_VARARGS,""},
+    {"db_iterator_next",  pyindexer_db_iterator_next, METH_VARARGS,""},
+    {"db_iterator_valid",  pyindexer_db_iterator_valid, METH_VARARGS,""},
+    {"db_iterator_key",  pyindexer_db_iterator_key, METH_VARARGS,""},
+    {"db_iterator_value",  pyindexer_db_iterator_value, METH_VARARGS,""},
+    {"db_iterator_free",  pyindexer_db_iterator_free, METH_VARARGS,""},
 //    {"db_exists",  pynessdb_db_exists, METH_VARARGS,""},
 //    {"db_info", pynessdb_db_info, METH_VARARGS,""},
     {"db_close",  pyindexer_db_close, METH_VARARGS,""},
