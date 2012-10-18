@@ -42,7 +42,7 @@ typedef struct _sst {
     uint32_t file_count;
     File* manifest;
 
-    uint32_t comp_level;
+    int comp_level;
     double comp_score;
 
     Vector* targets;

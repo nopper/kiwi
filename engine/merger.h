@@ -27,6 +27,10 @@ typedef struct _chained_iterator {
     SSTLoaderIterator* current;
 } ChainedIterator;
 
+int chained_iterator_comp(ChainedIterator* a, ChainedIterator* b);
+ChainedIterator* chained_iterator_new(uint32_t num_files, SSTMetadata** files);
+ChainedIterator* chained_iterator_new_seek(uint32_t num_files, SSTMetadata** files, Variant* key);
+
 struct _compaction;
 
 typedef struct _merge_iterator {

@@ -27,7 +27,12 @@ void file_range_debug(FileRange* self, const char *pre)
 {
     INFO("%s FileRange: %.*s %.*s", pre, self->smallest_key->length, self->smallest_key->mem, self->largest_key->length, self->largest_key->mem);
     for (uint32_t i = 0; i < vector_count(self->files); i++)
-        INFO("\tFile %d", ((SSTMetadata*)vector_get(self->files, i))->filenum);
+    {
+        SSTMetadata* curr = ((SSTMetadata*)vector_get(self->files, i));
+        INFO("\tFile %s [%.*s, %.*s]", curr->loader->file->filename,
+             curr->smallest_key->length, curr->smallest_key->mem,
+             curr->largest_key->length, curr->largest_key->mem);
+    }
 }
 
 uint64_t file_range_size(FileRange* self)
@@ -51,7 +56,7 @@ int chained_iterator_comp(ChainedIterator* a, ChainedIterator* b)
         ret = a->current->loader->level - b->current->loader->level;
 
         if (ret == 0)
-            ret = a->current->loader->filenum - b->current->loader->filenum;
+            ret = b->current->loader->filenum - a->current->loader->filenum;
 
         if (ret < 0)
             b->skip = 1;
@@ -70,6 +75,24 @@ void chained_iterator_init(ChainedIterator* iterator, FileRange* inputs)
     iterator->skip = 0;
     iterator->overlaps_from = inputs->overlaps_from;
     iterator->current = sst_loader_iterator((*(iterator->files + iterator->pos++))->loader);
+}
+
+ChainedIterator* chained_iterator_new(uint32_t num_files, SSTMetadata** files)
+{
+    ChainedIterator* iterator = calloc(1, sizeof(ChainedIterator));
+    iterator->files = files;
+    iterator->num_files = num_files;
+    iterator->current = sst_loader_iterator((*(iterator->files + iterator->pos++))->loader);
+    return iterator;
+}
+
+ChainedIterator* chained_iterator_new_seek(uint32_t num_files, SSTMetadata** files, Variant* key)
+{
+    ChainedIterator* iterator = calloc(1, sizeof(ChainedIterator));
+    iterator->files = files;
+    iterator->num_files = num_files;
+    iterator->current = sst_loader_iterator_seek((*(iterator->files + iterator->pos++))->loader, key);
+    return iterator;
 }
 
 void merge_iterator_free(MergeIterator *self)

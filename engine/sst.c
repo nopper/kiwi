@@ -57,7 +57,7 @@ static void _evaluate_compaction(SST* self)
     int comp_level = -1;
     double comp_score = -1;
 
-    for (uint32_t level = 0; level < MAX_LEVELS; level++)
+    for (int level = 0; level < MAX_LEVELS; level++)
     {
         double score;
 
@@ -251,6 +251,9 @@ SST* sst_new(const char* basedir)
     self->under_compaction = 0;
     self->targets = vector_new(); // Used to speed up the get
 
+    self->comp_level = -1;
+    self->comp_score = -1;
+
     for (uint32_t i = 0; i < MAX_LEVELS; i++)
     {
         self->files[i] = NULL;
@@ -265,6 +268,9 @@ SST* sst_new(const char* basedir)
 void sst_free(SST* self)
 {
     _write_manifest(self);
+
+    if (self->manifest)
+        file_free(self->manifest);
 
     for (uint32_t i = 0; i < MAX_LEVELS; i++)
     {
@@ -368,13 +374,13 @@ int sst_file_new(SST* self, uint32_t level, File** file, SSTBuilder** builder, S
     return 1;
 }
 
-static void _sst_merge_into(SkipNode* node, size_t count, SSTMetadata* meta, File* file, SSTBuilder* builder)
+static void _sst_merge_into(SkipNode* node, SkipNode* last, size_t count, SSTMetadata* meta, File* file, SSTBuilder* builder)
 {
     OPT opt;
     Variant* key = buffer_new(1024);
     Variant* value = buffer_new(1024);
 
-    for (int i = 0; i < count; i++)
+    for (int i = 0; i < count && node != last; i++)
     {
         memtable_extract_node(node, key, value, &opt);
 
@@ -385,8 +391,13 @@ static void _sst_merge_into(SkipNode* node, size_t count, SSTMetadata* meta, Fil
             buffer_putnstr(meta->largest_key, key->mem, key->length);
 
         sst_builder_add(builder, key, value);
-        node = NODE_FWD(node, 0);
+
+        free(node->data);
+        node = node->forward[0];
     }
+
+    buffer_free(key);
+    buffer_free(value);
 
     sst_builder_free(builder);
     file_close(file);
@@ -428,7 +439,7 @@ void sst_merge(SST* self, SkipList* list)
     }
 
     INFO("Compaction of %d elements started", list->count);
-    _sst_merge_into(first, list->count, meta, file, builder);
+    _sst_merge_into(first, list->hdr, list->count, meta, file, builder);
     sst_file_add(self, meta);
     INFO("Compaction of %d elements finished", list->count);
 }
@@ -446,9 +457,15 @@ int sst_get(SST* self, Variant* key, Variant* value)
         {
             for (uint32_t i = 0; i < self->num_files[level]; i++)
             {
+//                INFO("Compare %.*s %.*s = %d", key->length, key->mem, self->files[level][i]->smallest_key->length, self->files[level][i]->smallest_key->mem, variant_cmp(key, self->files[level][i]->smallest_key));
+//                INFO("Compare %.*s %.*s = %d", key->length, key->mem, self->files[level][i]->largest_key->length, self->files[level][i]->largest_key->mem, variant_cmp(key, self->files[level][i]->largest_key));
+
                 if (variant_cmp(key, self->files[level][i]->smallest_key) >= 0 &&
                     variant_cmp(key, self->files[level][i]->largest_key) <= 0)
+                {
+//                    INFO("ADDING IT");
                     vector_add(self->targets, self->files[level][i]);
+                }
             }
 
             qsort(vector_data(self->targets),
@@ -463,17 +480,18 @@ int sst_get(SST* self, Variant* key, Variant* value)
                 variant_cmp(key, self->files[level][start]->smallest_key) < 0)
                 continue;
 
+//            DEBUG("Adding possible target %s", self->files[level][start]->loader->file->filename);
+
             vector_add(self->targets, self->files[level][start]);
         }
+    }
 
+    for (uint32_t i = 0; i < vector_count(self->targets); i++)
+    {
+//        DEBUG("Looking for key %.*s inside %s", key->length, key->mem, ((SSTMetadata*)vector_get(self->targets, i))->loader->file->filename);
 
-        for (uint32_t i = 0; i < vector_count(self->targets); i++)
-        {
-//            DEBUG("Looking for key %.*s inside %s", key->length, key->mem, ((SSTMetadata*)vector_get(self->targets, i))->loader->file->filename);
-
-            if (sst_loader_get(((SSTMetadata*)vector_get(self->targets, i))->loader, key, value) == 1)
-                return 1;
-        }
+        if (sst_loader_get(((SSTMetadata*)vector_get(self->targets, i))->loader, key, value) == 1)
+            return 1;
     }
 
     return 0;
@@ -504,22 +522,46 @@ void sst_metadata_free(SSTMetadata* self)
 int sst_get_overlapping_inputs(SST* self, uint32_t level, Variant* begin, Variant* end, Vector* inputs, Variant** pbegin, Variant** pend)
 {
     int additions = 0;
-    int first_set = 0;
+    //int first_set = 0;
 
     if (inputs != NULL)
         vector_clear(inputs);
 
     for (int i = 0; i < self->num_files[level]; i++)
     {
-        SSTMetadata* target = *(self->files[level] + i);
+        SSTMetadata* target = self->files[level][i];
 
-        INFO("Range: %.*s End: %.*s", begin->length, begin->mem, end->length, end->mem);
-        INFO("File : %.*s end: %.*s", target->smallest_key->length, target->smallest_key->mem, target->largest_key->length, target->largest_key->mem);
+        if (range_intersects(begin, target->smallest_key, end, target->largest_key))
+        {
+            additions++;
+            if (inputs)
+                vector_add(inputs, target);
+
+            if (string_cmp(target->smallest_key->mem, begin->mem, target->smallest_key->length, begin->length) < 0)
+            {
+                begin = target->smallest_key;
+                if (inputs)
+                    vector_clear(inputs);
+                i = -1;
+            }
+            if (string_cmp(target->largest_key->mem, end->mem, target->largest_key->length, end->length) > 0)
+            {
+                end = target->largest_key;
+                if (inputs)
+                    vector_clear(inputs);
+                i = -1;
+            }
+        }
+
+#if 0
+
+        //INFO("Range: %.*s End: %.*s", begin->length, begin->mem, end->length, end->mem);
+        //INFO("File : %.*s end: %.*s", target->smallest_key->length, target->smallest_key->mem, target->largest_key->length, target->largest_key->mem);
 
         if (!begin || !end || !range_intersects(begin, target->smallest_key, end, target->largest_key))
             continue;
 
-        if (level == 0)
+        //if (level == 0)
         {
             if (!first_set && begin && string_cmp(target->smallest_key->mem, begin->mem, target->smallest_key->length, begin->length) < 0)
             {
@@ -530,12 +572,15 @@ int sst_get_overlapping_inputs(SST* self, uint32_t level, Variant* begin, Varian
                 end = target->largest_key;
         }
 
-        INFO("      Overlap!");
+        //INFO("      Overlap!");
         additions++;
 
         if (inputs != NULL)
             vector_add(inputs, target);
+#endif
     }
+
+    DEBUG("Extracted range: [%.*s, %.*s]", begin->length, begin->mem, end->length, end->mem);
 
     if (pbegin)
         *pbegin = begin;
@@ -550,10 +595,16 @@ int sst_find_file(SST* self, uint32_t level, Variant* smallest)
     uint32_t left = 0;
     uint32_t right = self->num_files[level];
 
+//    DEBUG("Checking in level %d", level);
+
     while (left < right)
     {
         uint32_t mid = (left + right) / 2;
         SSTMetadata* meta = *(self->files[level] + mid);
+
+//        DEBUG("left %d right %d mid %d", left, right, mid);
+//        DEBUG("Compare %.*s %.*s = %d", meta->largest_key->length, meta->largest_key->mem,  smallest->length, smallest->mem, variant_cmp(meta->largest_key, smallest));
+
         if (variant_cmp(meta->largest_key, smallest) < 0)
             left = mid + 1;
         else
@@ -573,8 +624,17 @@ int sst_range_overlaps(SST* self, uint32_t level, Variant* start, Variant* stop)
         {
             curr = *(self->files[level] + i);
             if (range_intersects(start, curr->smallest_key, stop, curr->largest_key))
+            {
+                DEBUG("Range [%.*s, %.*s] DOES overlap in level 0. Checking others",
+                      start->length, start->mem,
+                      stop->length, stop->mem);
                 return 1;
+            }
         }
+
+        DEBUG("Range [%.*s, %.*s] DOES NOT overlap in level 0. Checking others",
+              start->length, start->mem,
+              stop->length, stop->mem);
 
         return 0;
     }
@@ -585,17 +645,24 @@ int sst_range_overlaps(SST* self, uint32_t level, Variant* start, Variant* stop)
         return 0;
 
     curr = *(self->files[level] + pos);
-    return range_intersects(start, curr->smallest_key, stop, curr->largest_key);
+    int ret = range_intersects(start, curr->smallest_key, stop, curr->largest_key);
+
+    DEBUG("Range [%.*s, %.*s] DOES%s overlap in level %d. Checking others",
+          start->length, start->mem,
+          stop->length, stop->mem, ret ? " " : " NOT", level);
+
+    return ret;
 }
 
 uint32_t sst_pick_level_for_compaction(SST* self, Variant* start, Variant* stop)
 {
     uint32_t level = 0;
+    Vector* inputs = NULL;
 
     if (!sst_range_overlaps(self, level, start, stop))
     {
         uint64_t size = 0;
-        Vector* inputs = vector_new();
+        inputs = vector_new();
 
         while (level < MAX_MEM_COMPACT_LEVEL)
         {
@@ -614,7 +681,12 @@ uint32_t sst_pick_level_for_compaction(SST* self, Variant* start, Variant* stop)
         }
     }
 
-    INFO("Using level %d for memtable compaction", level);
+    if (inputs)
+        vector_free(inputs);
+
+    INFO("Using level %d for memtable compaction [%.*s, %.*s]", level,
+         start->length, start->mem,
+         stop->length, stop->mem);
     return level;
 }
 
@@ -624,11 +696,13 @@ void sst_compact(SST* self)
     if (self->under_compaction)
         return;
 
-    INFO("Starting compaction. Compaction level: %d Score: %f", self->comp_level, self->comp_score);
     Compaction* comp = NULL;
 
     if (self->comp_score >= 1)
+    {
+        INFO("Starting compaction. Compaction level: %d Score: %f", self->comp_level, self->comp_score);
         comp = compaction_new(self, self->comp_level);
+    }
 
     if (!comp)
         return;
@@ -636,9 +710,9 @@ void sst_compact(SST* self)
     self->under_compaction = 1;
     int needs_reset = 0, drop = 0;
 
-    Variant* key;
-    Variant* value;
-    MergeIterator* iter;
+    Variant* key = NULL;
+    Variant* value = NULL;
+    MergeIterator* iter = NULL;
 
     for (iter = merge_iterator_new(comp);
          merge_iterator_valid(iter); merge_iterator_next(iter))
@@ -690,4 +764,6 @@ void sst_compact(SST* self)
     compaction_install(comp);
     merge_iterator_free(iter);
     compaction_free(comp);
+
+    self->under_compaction = 0;
 }
