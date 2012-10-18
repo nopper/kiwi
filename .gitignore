@@ -9,3 +9,6 @@ app/indexer
 bindings/java/bluekiwi/target
 bindings/java/java/target
 bindings/java/native/linux/target
+.classpath
+.project
+.settings
