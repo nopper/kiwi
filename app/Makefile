@@ -8,7 +8,7 @@ all: $(INDEXER)
 .PHONY: all
 
 $(INDEXER): $(LIBINDEXER)
-	$(FINAL_LD) -static main.c -o $@ -lindexer -I../engine -L../engine $^
+	$(FINAL_LD) main.c -o $@ -lindexer -I../engine -L../engine $^
 
 %.o: %.c
 	$(FINAL_CC) -c $<

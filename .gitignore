@@ -3,4 +3,9 @@
 *.so
 *.pyc
 *.tar.gz
+*.class
+*.jar
 app/indexer
+bindings/java/bluekiwi/target
+bindings/java/java/target
+bindings/java/native/linux/target
