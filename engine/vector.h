@@ -12,6 +12,7 @@ typedef struct vector_ {
 
 Vector* vector_new(void);
 void vector_free(Vector* self);
+void* vector_release(Vector* self);
 void vector_clear(Vector* self);
 size_t vector_count(Vector* self);
 void** vector_data(Vector* self);

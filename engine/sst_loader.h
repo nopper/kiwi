@@ -44,6 +44,7 @@ typedef struct _sst_loader_iterator {
 } SSTLoaderIterator;
 
 SSTLoaderIterator* sst_loader_iterator(SSTLoader* self);
+SSTLoaderIterator* sst_loader_iterator_seek(SSTLoader* self, Variant* key);
 void sst_loader_iterator_free(SSTLoaderIterator* iter);
 void sst_loader_iterator_next(SSTLoaderIterator* iter);
 int sst_loader_iterator_valid(SSTLoaderIterator* iter);

@@ -29,18 +29,12 @@ static int _memtable_edit(MemTable* self, const Variant* key, const Variant* val
     // an encoded string that encompasses both the key and value supplied
     // by the user.
 
-    int ret, new_levels = 0;
-    size_t reserved = 0;
-
     size_t klen = varint_length(key->length);      // key length
     size_t vlen = varint_length(value->length);    // value length
     size_t encoded_len = klen + vlen + key->length + value->length + 1; // + 1 for tag
 
-    SkipNode *node = skiplist_new_node(self->list, encoded_len, &reserved, &new_levels);
-
-//    DEBUG("Node: %.*s with %d levels allocated", key->length, key->mem, new_levels + 1);
-
-    char *node_key = (char *)NODE_KEY(node);
+    char *mem = malloc(sizeof(char) * encoded_len);
+    char *node_key = mem;
 
     encode_varint32(node_key, key->length);
     node_key += klen;
@@ -56,19 +50,18 @@ static int _memtable_edit(MemTable* self, const Variant* key, const Variant* val
 
     memcpy(node_key, value->mem, value->length);
 
-    node->klen = encoded_len;
-
-    ret = skiplist_insert_last(self->list, key->mem, key->length, new_levels, opt);
-
-    if (ret == STATUS_OK_DEALLOC)
-        skiplist_free_node(self->list, reserved);
+    if (skiplist_insert(self->list, key->mem, key->length, opt, mem) == STATUS_OK_DEALLOC)
+        free(mem);
 
     if (opt == ADD)
         self->add_count++;
     else
         self->del_count++;
 
-    return (ret != 0);
+//    DEBUG("memtable_edit: %.*s %.*s opt: %d", key->length, key->mem, value->length, value->mem, opt);
+
+
+    return 1;
 }
 
 int memtable_add(MemTable* self, const Variant* key, const Variant* value)
@@ -90,7 +83,7 @@ int memtable_get(MemTable* self, const Variant *key, Variant* value)
     if (!node)
         return 0;
 
-    const char* encoded = (const char *)NODE_KEY(node);
+    const char* encoded = node->data;
     encoded += varint_length(key->length) + key->length;
 
     if (*encoded == MARK_DELETED)
@@ -107,14 +100,14 @@ int memtable_get(MemTable* self, const Variant *key, Variant* value)
 
 int memtable_needs_compaction(MemTable *self)
 {
-    return (self->add_count >= SKIPLIST_SIZE ||
-            self->list->arena->allocated >= MAX_SKIPLIST_ALLOCATION);
+    return (self->list->count >= SKIPLIST_SIZE ||
+            self->list->allocated >= MAX_SKIPLIST_ALLOCATION);
 }
 
 void memtable_extract_node(SkipNode* node, Variant* key, Variant* value, OPT* opt)
 {
     uint32_t length = 0;
-    const char* encoded = (const char *)NODE_KEY(node);
+    const char* encoded = node->data;
     encoded = get_varint32(encoded, encoded + 5, &length);
 
     buffer_clear(key);

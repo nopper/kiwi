@@ -56,6 +56,16 @@ void* vector_get(Vector* self, uint32_t pos)
 
 void vector_free(Vector* self)
 {
-    free(self->data);
+    if (self->data)
+        free(self->data);
     free(self);
+}
+
+void *vector_release(Vector *self)
+{
+    void* ptr = self->data;
+    self->size = 10;
+    self->data = malloc(sizeof(void*) * self->size);
+    self->count = 0;
+    return ptr;
 }

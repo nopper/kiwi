@@ -10,7 +10,7 @@ void compaction_free(Compaction* self)
     free(self);
 }
 
-Compaction* compaction_new(SST *sst, uint32_t level)
+Compaction* compaction_new(SST *sst, int level)
 {
     if (!(level + 1 < MAX_LEVELS))
         return NULL;
@@ -58,8 +58,8 @@ Compaction* compaction_new(SST *sst, uint32_t level)
                                &parents->smallest_key,
                                &parents->largest_key);
 
-    file_range_debug(current, "level  ");
-    file_range_debug(parents, "level+1");
+    file_range_debug(current, "current");
+    file_range_debug(parents, "parent");
 
     if (vector_count(parents->files) > 0)
     {
@@ -85,6 +85,8 @@ Compaction* compaction_new(SST *sst, uint32_t level)
                                    &missing->smallest_key,
                                    &missing->largest_key);
 
+        file_range_debug(missing, "missing");
+
         uint64_t current_size = file_range_size(current);
         uint64_t parents_size = file_range_size(parents);
         uint64_t missing_size = file_range_size(missing);
@@ -98,7 +100,7 @@ Compaction* compaction_new(SST *sst, uint32_t level)
                                            NULL, NULL, NULL) == \
                 vector_count(parents->files))
             {
-                INFO("Expanding %d+%d files (%ld+%ld bytes) to "
+                INFO("Expanding %d+%d files (%"PRIu64"+%"PRIu64" bytes) to "
                      "%d+%d files (%ld+%ld bytes) in output level %d",
                      vector_count(self->current_range->files),
                      vector_count(self->parent_range->files),
@@ -159,7 +161,12 @@ Compaction* compaction_new(SST *sst, uint32_t level)
         }
     }
 
-    INFO("Compacting %d+%d files (%ld+%ld bytes) in output level %d",
+    file_range_debug(self->current_range, "final current");
+    file_range_debug(self->parent_range, "final parent");
+
+    // TODO: please check that the actual file you're reducing are actually > 1
+
+    INFO("Compacting %d+%d files (%" PRIu64 "+%" PRIu64 " bytes) in output level %d",
          vector_count(self->current_range->files),
          vector_count(self->parent_range->files),
          file_range_size(self->current_range),

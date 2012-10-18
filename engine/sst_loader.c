@@ -1,4 +1,5 @@
 #include <string.h>
+#include <assert.h>
 #include <inttypes.h>
 #include "sst_loader.h"
 #include "utils.h"
@@ -58,7 +59,7 @@ static int _load_index(SSTLoader* self, uint64_t offset, uint64_t size)
     // Now let's read the contents from the index
     while (start < stop)
     {
-        entry = malloc(sizeof(IndexEntry));
+        entry = calloc(1, sizeof(IndexEntry));
 
         start += 1; // Skip the first character. We do not have any kind of shared
         start = get_varint32(start, start + 5, &entry->klen);
@@ -169,11 +170,20 @@ err:
 
 void sst_loader_free(SSTLoader* self)
 {
+    // Iterate and free
+    for (int i = 0; i < kv_size(self->index); i++)
+    {
+        IndexEntry* entry = kv_A(self->index, i);
+        free(entry->key);
+        free(entry);
+    }
+
+    kv_destroy(self->index);
     file_free(self->file);
     free(self);
 }
 
-IndexEntry* _get_index_entry(SSTLoader* self, Variant* key)
+IndexEntry* _get_index_entry(SSTLoader* self, Variant* key, uint32_t *block)
 {
     int ret;
     IndexEntry* entry;
@@ -192,6 +202,9 @@ IndexEntry* _get_index_entry(SSTLoader* self, Variant* key)
         else // key < block
             right = mid;
     }
+
+    if (block)
+        *block = left;
 
     entry = kv_A(self->index, left);
 //    DEBUG("[1 of 3] Key %.*s is contained in block <= %.*s", key->length, key->mem, entry->klen, entry->key);
@@ -238,12 +251,12 @@ IndexEntry* _get_index_entry(SSTLoader* self, Variant* key)
 
 int sst_loader_get(SSTLoader* self, Variant* key, Variant* value)
 {
-    IndexEntry *entry = _get_index_entry(self, key);
+    IndexEntry* entry = _get_index_entry(self, key, NULL);
 
     if (!entry)
         return 0;
 
-    int ret;
+    int ret = -2;
     char *start = NULL, *stop = NULL, *iter;
     _read_block(self, entry->offset, entry->size, &start, &stop);
 
@@ -316,6 +329,20 @@ int sst_loader_get(SSTLoader* self, Variant* key, Variant* value)
     return 0;
 }
 
+static uint32_t _sst_loader_read_block(SSTLoaderIterator* iter, IndexEntry* entry)
+{
+    _read_block(iter->loader, entry->offset, entry->size, &iter->start, &iter->stop);
+
+    iter->current = iter->start;
+
+    // We need to skip restart pointer since we are just iterating over the structure
+    // at least for now
+    uint32_t num_restarts = get_int32(iter->stop - sizeof(uint32_t));
+    iter->stop -= sizeof(uint32_t) * (num_restarts + 1);
+
+    return num_restarts;
+}
+
 static void _sst_loader_iterator_next_block(SSTLoaderIterator* iter)
 {
     iter->block++;
@@ -326,20 +353,78 @@ static void _sst_loader_iterator_next_block(SSTLoaderIterator* iter)
         return;
     }
 
-    IndexEntry* entry = kv_A(iter->loader->index, iter->block);
-    _read_block(iter->loader, entry->offset, entry->size, &iter->start, &iter->stop);
-
-    iter->current = iter->start;
-
-    // We need to skip restart pointer since we are just iterating over the structure
-    // at least for now
-    uint32_t num_restarts = get_int32(iter->stop - sizeof(uint32_t));
-    iter->stop -= sizeof(uint32_t) * (num_restarts + 1);
-
+    _sst_loader_read_block(iter, kv_A(iter->loader->index, iter->block));
     sst_loader_iterator_next(iter);
 }
 
-SSTLoaderIterator* sst_loader_iterator(SSTLoader* self)
+static void _sst_loader_iterator_find(SSTLoaderIterator* iter, Variant* key)
+{
+    IndexEntry* entry = _get_index_entry(iter->loader, key, &iter->block);
+    assert(entry != NULL);
+
+    int ret;
+    uint32_t num_restarts = _sst_loader_read_block(iter, entry);
+
+    uint32_t left = 0;
+    uint32_t right = num_restarts - 1;
+    uint32_t plen, klen, vlen;
+
+    char *ptr = NULL;
+
+    while (left < right)
+    {
+        uint32_t mid = (left + right + 1) / 2;
+
+        ptr = iter->start + get_int32(iter->stop + (sizeof(uint32_t) * mid)) + 1;
+        ptr = (char *)get_varint32(ptr, ptr + 5, &klen);
+        ptr = (char *)get_varint32(ptr, ptr + 5, &vlen);
+
+        ret = string_cmp(ptr, key->mem, klen, key->length);
+
+        if (ret <= 0) // restart < key => might be ok
+            left = mid;
+        else // key < restart
+            right = mid - 1;
+    }
+
+    assert(ptr != NULL);
+
+    buffer_clear(iter->key);
+    buffer_clear(iter->value);
+
+    if (ret == 0)
+    {
+        iter->valid = 1;
+        buffer_putnstr(iter->key, key->mem, key->length);
+        buffer_putnstr(iter->value, ptr + klen, vlen);
+        iter->start = ptr + klen + vlen;
+
+        return;
+    }
+
+    // From here we temporarly use use the value as storage buffer
+    ptr = iter->start + get_int32(iter->stop + (sizeof(uint32_t) * left));
+
+    do {
+        ptr = (char *)get_varint32(ptr, ptr + 5, &plen);
+        ptr = (char *)get_varint32(ptr, ptr + 5, &klen);
+        ptr = (char *)get_varint32(ptr, ptr + 5, &vlen);
+
+        iter->key->length = plen;
+        buffer_putnstr(iter->key, ptr, klen);
+
+        ret = string_cmp(iter->key->mem, key->mem, iter->key->length, key->length);
+
+        ptr += klen + vlen;
+    } while (ret < 0 && ptr < iter->stop);
+
+
+    buffer_putnstr(iter->value, ptr - vlen, vlen);
+    iter->start = ptr;
+    iter->valid = 1;
+}
+
+SSTLoaderIterator* sst_loader_iterator_seek(SSTLoader* self, Variant* key)
 {
     SSTLoaderIterator* iter = malloc(sizeof(SSTLoaderIterator));
 
@@ -350,8 +435,17 @@ SSTLoaderIterator* sst_loader_iterator(SSTLoader* self)
     iter->value = buffer_new(32);
     iter->valid = 0;
 
-    _sst_loader_iterator_next_block(iter);
+    if (!key)
+        _sst_loader_iterator_next_block(iter);
+    else
+        _sst_loader_iterator_find(iter, key);
+
     return iter;
+}
+
+SSTLoaderIterator* sst_loader_iterator(SSTLoader* self)
+{
+    return sst_loader_iterator_seek(self, NULL);
 }
 
 void sst_loader_iterator_free(SSTLoaderIterator *iter)

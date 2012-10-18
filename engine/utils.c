@@ -159,7 +159,7 @@ void int3(void)
 }
 
 
-int string_cmp(const char *s1, const char *s2, size_t ln, size_t lm)
+inline int string_cmp(const char *s1, const char *s2, size_t ln, size_t lm)
 {
     int ret = memcmp(s1, s2, MIN(ln, lm));
 
@@ -176,6 +176,18 @@ int variant_cmp(const Variant* a, const Variant* b)
 
 int range_intersects(Variant* astart, Variant* bstart, Variant* astop, Variant* bstop)
 {
-    return !((string_cmp(bstop->mem, astart->mem, bstop->length, astart->length) < 0) ||
+    return
+      /*int ret = */
+           !((string_cmp(bstop->mem, astart->mem, bstop->length, astart->length) < 0) ||
              (string_cmp(bstart->mem, astop->mem, bstart->length, astop->length) > 0));
+    /*
+    DEBUG("RANGE CHECK [%.*s, %.*s] vs [%.*s, %.*s] = %d %d = %d",
+          astart->length, astart->mem,
+          astop->length, astop->mem,
+          bstart->length, bstart->mem,
+          bstop->length, bstop->mem,
+          string_cmp(bstop->mem, astart->mem, bstop->length, astart->length),
+          string_cmp(bstart->mem, astop->mem, bstart->length, astop->length), ret);
+    return ret;
+    */
 }

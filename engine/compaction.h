@@ -8,7 +8,7 @@
 #include "merger.h"
 
 struct _compaction {
-    uint32_t level;
+    int level;
 
     Vector* outputs; // SSTMetadata**
 
@@ -30,7 +30,7 @@ struct _compaction {
 
 typedef struct _compaction Compaction;
 
-Compaction* compaction_new(SST* sst, uint32_t level);
+Compaction* compaction_new(SST* sst, int level);
 void compaction_free(Compaction* self);
 void compaction_install(Compaction* self);
 int compaction_new_output_file(Compaction* self);
