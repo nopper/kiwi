@@ -54,12 +54,12 @@
 					</sources>
 
           <compilerStartOptions>
-             <compilerStartOption>-std=c99 -fPIC -ggdb -O0</compilerStartOption>
+             <compilerStartOption>-std=c99 -O3 -fomit-frame-pointer</compilerStartOption>
            </compilerStartOptions>
 
 					<linkerStartOptions>
-					 <linkerStartOption>-shared -fPIC</linkerStartOption>
-					</linkerStartOptions>
+					 <linkerStartOption>-shared</linkerStartOption>
+          </linkerStartOptions>
 
 				</configuration>
         <executions>

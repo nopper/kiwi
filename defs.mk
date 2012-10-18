@@ -3,7 +3,7 @@ AR = ar
 JAVAC = javac
 JAVAH = javah
 STD = -std=c99 -Wall -pedantic
-OPTIMIZATION ?= -O0
+OPTIMIZATION ?= -O3
 OPT = $(OPTIMIZATION)
 DEBUG = -g -ggdb
 WARN = -Wall

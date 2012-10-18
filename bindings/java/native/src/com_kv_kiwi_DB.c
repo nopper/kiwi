@@ -83,8 +83,8 @@ JNIEXPORT jbyteArray JNICALL Java_com_kv_kiwi_DB_get(JNIEnv *jenv, jobject jclas
     
     if ((ret == 1) && (value->length > 0))
     {
-    	arr = (*jenv)->NewByteArray(jenv, value->length);
-    	(*jenv)->SetByteArrayRegion(jenv, arr, 0, value->length, value->mem);
+        arr = (*jenv)->NewByteArray(jenv, value->length);
+        (*jenv)->SetByteArrayRegion(jenv, arr, 0, value->length, value->mem);
     }
 
     buffer_free(value);
@@ -128,4 +128,72 @@ JNIEXPORT jint JNICALL Java_com_kv_kiwi_DB_close(JNIEnv* jenv, jobject jclass)
     }
     
     return ret;
+}
+
+JNIEXPORT jlong JNICALL Java_com_kv_kiwi_DB_iterator_1new(JNIEnv* jenv, jobject jclass)
+{
+    (void)jenv;
+    (void)jclass;
+    DBIterator* iter = NULL;
+    
+    if (_db)
+        iter = db_iterator_new(_db);
+    
+    return (jlong)iter;
+}
+
+JNIEXPORT void JNICALL Java_com_kv_kiwi_DB_iterator_1seek(JNIEnv* jenv, jobject jclass, jlong ptr, jbyteArray jkey)
+{
+    (void)jenv;
+    (void)jclass;
+    DBIterator* iter = (DBIterator*)ptr;
+    
+    if (iter)
+    {
+        Variant key;
+        key.mem = (char*)(*jenv)->GetByteArrayElements(jenv, jkey, 0);
+        key.length = (*jenv)->GetArrayLength(jenv, jkey);
+        
+        db_iterator_seek(iter, &key);
+        
+        (*jenv)->ReleaseByteArrayElements(jenv, jkey, (jbyte*)key.mem, 0);
+    }
+}
+
+JNIEXPORT jboolean JNICALL Java_com_kv_kiwi_DB_iterator_1valid(JNIEnv* jenv, jobject jclass, jlong ptr)
+{
+    (void)jenv;
+    (void)jclass;
+    return (jboolean)db_iterator_valid((DBIterator*)ptr);
+}
+
+JNIEXPORT void JNICALL Java_com_kv_kiwi_DB_iterator_1next(JNIEnv* jenv, jobject jclass, jlong ptr)
+{
+    (void)jenv;
+    (void)jclass;
+    db_iterator_next((DBIterator*)ptr);
+}
+
+JNIEXPORT jbyteArray JNICALL Java_com_kv_kiwi_DB_iterator_1key(JNIEnv* jenv, jobject jclass, jlong ptr)
+{
+    (void)jenv;
+    (void)jclass;
+    
+    Variant *v = db_iterator_key((DBIterator*)ptr);
+    jbyteArray arr = (*jenv)->NewByteArray(jenv, v->length);
+    (*jenv)->SetByteArrayRegion(jenv, arr, 0, v->length, v->mem);
+    
+    return arr;
+}
+
+JNIEXPORT jbyteArray JNICALL Java_com_kv_kiwi_DB_iterator_1value(JNIEnv* jenv, jobject jclass, jlong ptr)
+{
+    (void)jenv;
+    (void)jclass;
+    
+    Variant *v = db_iterator_value((DBIterator*)ptr);
+    jbyteArray arr = (*jenv)->NewByteArray(jenv, v->length);
+    (*jenv)->SetByteArrayRegion(jenv, arr, 0, v->length, v->mem);
+    
+    return arr;
 }

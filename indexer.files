@@ -47,3 +47,9 @@ engine/merger.c
 bindings/python/indexer_module.c
 app/main.c
 bindings/java/com_kv_indexer_DB.c
+engine/hash.c
+engine/hash.h
+engine/bloom_builder.c
+engine/bloom_builder.h
+engine/lru.c
+engine/lru.h

@@ -1,16 +1,29 @@
 package com.kv.kiwi.bluekiwi;
 
+import java.util.Map;
 import java.util.Set;
 
-import com.tinkerpop.blueprints.pgm.Element;
+import com.tinkerpop.blueprints.Element;
 
-public class KiwiElement implements Element {
-	private KiwiGraph db;
-	private Long id;
+public abstract class KiwiElement implements Element {
+	public Map<String,String> properties;
+	protected KiwiGraph db;
+	protected Long id;
 	
 	public KiwiElement(KiwiGraph db, Long id) {
 		this.db = db;
 		this.id = id;
+	}
+	
+	protected byte[] getRawValue() {
+		byte[] key;
+		
+		if (this instanceof KiwiVertex)
+			key = "V".concat(String.valueOf(id)).getBytes();
+		else
+			key = "E".concat(String.valueOf(id)).getBytes();
+		
+		return db.getDatabase().get(key, key.length);
 	}
 
 	@Override
@@ -27,31 +40,40 @@ public class KiwiElement implements Element {
     }
 	
 	@Override
-	public Object getProperty(String arg0) {
-		// TODO Auto-generated method stub
-		return null;
+	public Object getProperty(String key) {
+		return properties.get(key);
 	}
 
 	@Override
 	public Set<String> getPropertyKeys() {
-		// TODO Auto-generated method stub
-		return null;
+		return properties.keySet();
 	}
 
 	@Override
-	public Object removeProperty(String arg0) {
-		// TODO Auto-generated method stub
-		return null;
+	public Object removeProperty(String key) {
+		Object old = getProperty(key);
+		properties.remove(key);
+		save();
+		return old;
 	}
 
+	abstract void save();
+
 	@Override
-	public void setProperty(String arg0, Object arg1) {
-		// TODO Auto-generated method stub
-		
+	public void setProperty(String key, Object value) {
+		properties.put(key, value.toString());
+		save();
 	}
 
 	public void remove() {
-		System.out.println("Removing ".concat(this.toString()));
+		byte[] key;
+		
+		if (this instanceof KiwiVertex)
+			key = "V".concat(String.valueOf(id)).getBytes();
+		else
+			key = "E".concat(String.valueOf(id)).getBytes();
+		
+		db.getDatabase().remove(key, key.length);
 	}
 	
 
