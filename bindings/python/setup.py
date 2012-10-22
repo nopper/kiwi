@@ -4,21 +4,23 @@ import glob
 
 from distutils.core import setup, Extension
 
-
-currentpath = os.path.abspath(os.path.dirname(__file__))
-rootpath = os.path.abspath(os.path.join(currentpath, '..', '..'))
+currentpath = os.path.dirname(__file__)
+rootpath = os.path.join(currentpath, '..', '..')
 sources = glob.glob(os.path.join(rootpath, 'engine/*.c'))
 
-os.environ["CFLAGS"] = "-Wno-strict-prototypes -std=c99 -I%s/engine -ggdb -O0" % rootpath
-#os.environ["CFLAGS"] = "-Wno-strict-prototypes -std=c99 -I%s/engine -O3" % rootpath
+#os.environ["CFLAGS"] = "-Wno-strict-prototypes -std=c99 -ggdb -O0"
+os.environ["CFLAGS"] = "-Wno-strict-prototypes -std=c99 -O3 -fomit-frame-pointer"
 
-ext_indexer = Extension('_indexer',
-                        include_dirrs=[os.path.join(rootpath, 'engine')],
-                        sources=sources + ['indexer_module.c'])
+ext_kiwi = Extension('_kiwidb',
+	include_dirs=[os.path.join(rootpath, 'engine')],
+	sources=sources + [os.path.join('extension', 'kiwi_module.c')])
 
-setup(name='indexer',
+setup(name='KiwiGraph',
       version='0.1',
-      description='Python binding for indexer',
-      py_modules=['indexer'],
-      ext_modules=[ext_indexer])
+      description='Graph database on top of Kiwi KV storage',
+      author='Francesco Piccinno',
+      author_email='stac.box@gmail.com',
+      packages=['kiwi'],
+      #py_modules=['indexer'],
+      ext_modules=[ext_kiwi])
 

@@ -3,7 +3,7 @@
 #include "variant.h"
 
 static PyObject *
-pyindexer_db_open(PyObject *self, PyObject *args)
+kiwi_db_open(PyObject *self, PyObject *args)
 {
     const char *basedir;
 
@@ -15,7 +15,7 @@ pyindexer_db_open(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-pyindexer_db_add(PyObject *self, PyObject *args)
+kiwi_db_add(PyObject *self, PyObject *args)
 {
     Variant key, value;
     long db;
@@ -29,7 +29,7 @@ pyindexer_db_add(PyObject *self, PyObject *args)
 
 
 static PyObject *
-pyindexer_db_remove(PyObject *self, PyObject *args)
+kiwi_db_remove(PyObject *self, PyObject *args)
 {
     Variant key;
     long db;
@@ -42,7 +42,7 @@ pyindexer_db_remove(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-pyindexer_db_get(PyObject *self, PyObject *args)
+kiwi_db_get(PyObject *self, PyObject *args)
 {
     Variant key;
     Variant* value = (Variant *)buffer_new(255);
@@ -66,7 +66,7 @@ pyindexer_db_get(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-pyindexer_db_close(PyObject *self, PyObject *args)
+kiwi_db_close(PyObject *self, PyObject *args)
 {
     long db=0;
 
@@ -79,7 +79,7 @@ pyindexer_db_close(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-pyindexer_db_iterator_new(PyObject *self, PyObject *args)
+kiwi_db_iterator_new(PyObject *self, PyObject *args)
 {
     long db=0;
 
@@ -91,7 +91,7 @@ pyindexer_db_iterator_new(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-pyindexer_db_iterator_seek(PyObject *self, PyObject *args)
+kiwi_db_iterator_seek(PyObject *self, PyObject *args)
 {
     Variant key;
     long iter;
@@ -106,7 +106,7 @@ pyindexer_db_iterator_seek(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-pyindexer_db_iterator_next(PyObject *self, PyObject *args)
+kiwi_db_iterator_next(PyObject *self, PyObject *args)
 {
     long iter;
 
@@ -120,7 +120,7 @@ pyindexer_db_iterator_next(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-pyindexer_db_iterator_valid(PyObject *self, PyObject *args)
+kiwi_db_iterator_valid(PyObject *self, PyObject *args)
 {
     long iter;
 
@@ -134,7 +134,7 @@ pyindexer_db_iterator_valid(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-pyindexer_db_iterator_key(PyObject *self, PyObject *args)
+kiwi_db_iterator_key(PyObject *self, PyObject *args)
 {
     long iter;
 
@@ -147,7 +147,7 @@ pyindexer_db_iterator_key(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-pyindexer_db_iterator_value(PyObject *self, PyObject *args)
+kiwi_db_iterator_value(PyObject *self, PyObject *args)
 {
     long iter;
 
@@ -160,7 +160,7 @@ pyindexer_db_iterator_value(PyObject *self, PyObject *args)
 }
 
 static PyObject *
-pyindexer_db_iterator_free(PyObject *self, PyObject *args)
+kiwi_db_iterator_free(PyObject *self, PyObject *args)
 {
     long iter;
 
@@ -173,26 +173,26 @@ pyindexer_db_iterator_free(PyObject *self, PyObject *args)
     return Py_None;
 }
 
-static PyMethodDef IndexerMethods[] = {
-    {"db_open",  pyindexer_db_open, METH_VARARGS,""},
-    {"db_add",  pyindexer_db_add, METH_VARARGS,""},
-    {"db_remove",  pyindexer_db_remove, METH_VARARGS,""},
-    {"db_get",  pyindexer_db_get, METH_VARARGS,""},
-    {"db_iterator_new",  pyindexer_db_iterator_new, METH_VARARGS,""},
-    {"db_iterator_seek",  pyindexer_db_iterator_seek, METH_VARARGS,""},
-    {"db_iterator_next",  pyindexer_db_iterator_next, METH_VARARGS,""},
-    {"db_iterator_valid",  pyindexer_db_iterator_valid, METH_VARARGS,""},
-    {"db_iterator_key",  pyindexer_db_iterator_key, METH_VARARGS,""},
-    {"db_iterator_value",  pyindexer_db_iterator_value, METH_VARARGS,""},
-    {"db_iterator_free",  pyindexer_db_iterator_free, METH_VARARGS,""},
+static PyMethodDef KiwiMethods[] = {
+    {"db_open",  kiwi_db_open, METH_VARARGS,""},
+    {"db_add",  kiwi_db_add, METH_VARARGS,""},
+    {"db_remove",  kiwi_db_remove, METH_VARARGS,""},
+    {"db_get",  kiwi_db_get, METH_VARARGS,""},
+    {"db_iterator_new",  kiwi_db_iterator_new, METH_VARARGS,""},
+    {"db_iterator_seek",  kiwi_db_iterator_seek, METH_VARARGS,""},
+    {"db_iterator_next",  kiwi_db_iterator_next, METH_VARARGS,""},
+    {"db_iterator_valid",  kiwi_db_iterator_valid, METH_VARARGS,""},
+    {"db_iterator_key",  kiwi_db_iterator_key, METH_VARARGS,""},
+    {"db_iterator_value",  kiwi_db_iterator_value, METH_VARARGS,""},
+    {"db_iterator_free",  kiwi_db_iterator_free, METH_VARARGS,""},
 //    {"db_exists",  pynessdb_db_exists, METH_VARARGS,""},
 //    {"db_info", pynessdb_db_info, METH_VARARGS,""},
-    {"db_close",  pyindexer_db_close, METH_VARARGS,""},
+    {"db_close",  kiwi_db_close, METH_VARARGS,""},
     {NULL, NULL, 0, NULL}
 };
 
 PyMODINIT_FUNC
-init_indexer(void)
+init_kiwidb(void)
 {
-    (void)Py_InitModule("_indexer", IndexerMethods);
+    (void)Py_InitModule("_kiwidb", KiwiMethods);
 }
