@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include "arena.h"
 #include "config.h"
+#include "variant.h"
 
 #define SKIPLIST_MAXLEVEL (15)
 #define SKIPNODE_SIZE (sizeof(SkipNode))
@@ -12,8 +13,6 @@
 
 #define MARK_DELETED 0x1
 #define MARK_ADDED   0x0
-
-typedef enum {ADD,DEL} OPT;
 
 typedef struct _skipnode {
     char* data;

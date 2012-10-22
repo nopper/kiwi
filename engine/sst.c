@@ -390,7 +390,7 @@ static void _sst_merge_into(SkipNode* node, SkipNode* last, size_t count, SSTMet
         if (i == count - 1)
             buffer_putnstr(meta->largest_key, key->mem, key->length);
 
-        sst_builder_add(builder, key, value);
+        sst_builder_add(builder, key, value, opt);
 
         free(node->data);
         node = node->forward[0];
@@ -438,7 +438,7 @@ void sst_merge(SST* self, SkipList* list)
         return;
     }
 
-    INFO("Compaction of %d elements started", list->count);
+    INFO("Compaction of %d [%d bytes allocated] elements started", list->count, list->allocated);
     _sst_merge_into(first, list->hdr, list->count, meta, file, builder);
     sst_file_add(self, meta);
     INFO("Compaction of %d elements finished", list->count);
@@ -489,9 +489,9 @@ int sst_get(SST* self, Variant* key, Variant* value)
     for (uint32_t i = 0; i < vector_count(self->targets); i++)
     {
 //        DEBUG("Looking for key %.*s inside %s", key->length, key->mem, ((SSTMetadata*)vector_get(self->targets, i))->loader->file->filename);
-
-        if (sst_loader_get(((SSTMetadata*)vector_get(self->targets, i))->loader, key, value) == 1)
-            return 1;
+        OPT opt;
+        if (sst_loader_get(((SSTMetadata*)vector_get(self->targets, i))->loader, key, value, &opt) == 1)
+            return opt == ADD;
     }
 
     return 0;
@@ -710,6 +710,7 @@ void sst_compact(SST* self)
     self->under_compaction = 1;
     int needs_reset = 0, drop = 0;
 
+    OPT opt = ADD;
     Variant* key = NULL;
     Variant* value = NULL;
     MergeIterator* iter = NULL;
@@ -719,9 +720,10 @@ void sst_compact(SST* self)
     {
         key = merge_iterator_key(iter);
         value = merge_iterator_value(iter);
+        opt = merge_iterator_opt(iter);
 
         // Check to see if the actual key is a deletion mark
-        if (value->length == 0 && compaction_is_base_level_for(comp, key))
+        if (opt == DEL && compaction_is_base_level_for(comp, key))
         {
             drop = 1;
             continue;
@@ -746,7 +748,7 @@ void sst_compact(SST* self)
             needs_reset = 1;
         }
 
-        sst_builder_add(comp->builder, key, value);
+        sst_builder_add(comp->builder, key, value, opt);
     }
 
     if (drop)
@@ -755,7 +757,7 @@ void sst_compact(SST* self)
         // You have to check out this to see if it safe
         key = comp->builder->data_block->last_key;
         WARN("SST file %s was ended by a dropped key.", comp->file->filename);
-        WARN("Check out the the key %s is actually the last key of the file", key->length, key->mem);
+        WARN("Check out the the key %.*s is actually the last key of the file", key->length, key->mem);
     }
 
     buffer_clear(comp->meta->largest_key);

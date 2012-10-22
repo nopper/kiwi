@@ -19,17 +19,15 @@ SkipList* skiplist_new(size_t max_count)
     if (!self)
         PANIC("NULL allocation");
 
-    self->hdr = malloc(SKIPNODE_SIZE + SKIPLIST_MAXLEVEL * sizeof(SkipNode*));
-    self->level = 0;
+    self->max_count = max_count;
+    self->arena = arena_new();
+    self->allocated = 0;
 
-    if (!self->hdr)
-        PANIC("NULL allocation");
+    self->hdr = arena_alloc(self->arena, SKIPNODE_SIZE + SKIPLIST_MAXLEVEL * sizeof(SkipNode*));
+    self->level = 0;
 
     for (i = 0; i <= SKIPLIST_MAXLEVEL; i++)
         self->hdr->forward[i] = self->hdr;
-
-    self->max_count = max_count;
-    self->arena = arena_new();
 
     return self;
 }
@@ -37,7 +35,7 @@ SkipList* skiplist_new(size_t max_count)
 void skiplist_free(SkipList* self)
 {
     arena_free(self->arena);
-    free(self->hdr);
+    //free(self->hdr);
     free(self);
 }
 
@@ -52,9 +50,11 @@ static size_t skipnode_size(SkipNode* node)
 {
     uint32_t encoded_len = 0;
     const char *end = get_varint32(node->data, node->data + 5, &encoded_len);
-    end += encoded_len + 1;
-    end = get_varint32(end, end + 5, &encoded_len);
     end += encoded_len;
+    end = get_varint32(end, end + 5, &encoded_len);
+
+    if (encoded_len > 1)
+        end += encoded_len - 1;
 
     return end - node->data;
 }
@@ -78,26 +78,14 @@ int skiplist_insert(SkipList* self, const char *key, size_t klen, OPT opt, char 
 
     if (x != self->hdr && cmp_eq(x->data, key, klen))
     {
-        if (opt == DEL)
-        {
-            uint32_t len;
-            char* start = (char *)get_varint32(x->data, x->data + 5, &len);
-            start += len;
-            *start = MARK_DELETED;
+        void* tmp = x->data;
+        self->allocated -= skipnode_size(x);
+        x->data = data;
+        self->allocated += skipnode_size(x);
 
-            return STATUS_OK_DEALLOC;
-        }
-        else
-        {
-            void* tmp = x->data;
-            self->allocated -= skipnode_size(x);
-            x->data = data;
-            self->allocated += skipnode_size(x);
+        free(tmp);
 
-            free(tmp);
-
-            return STATUS_OK;
-        }
+        return STATUS_OK;
     }
 
     self->count++;
@@ -114,7 +102,7 @@ int skiplist_insert(SkipList* self, const char *key, size_t klen, OPT opt, char 
         self->level = new_level;
     }
 
-    if ((x = malloc(SKIPNODE_SIZE + new_level * sizeof(SkipNode*))) == NULL)
+    if ((x = arena_alloc(self->arena, SKIPNODE_SIZE + new_level * sizeof(SkipNode*))) == NULL)
         PANIC("NULL allocation");
 
     x->data = data;

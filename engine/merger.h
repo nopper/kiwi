@@ -50,5 +50,6 @@ int merge_iterator_exceeds_overlap(MergeIterator* self, Variant *key);
 
 Variant* merge_iterator_key(MergeIterator* self);
 Variant* merge_iterator_value(MergeIterator* self);
+OPT merge_iterator_opt(MergeIterator* self);
 
 #endif

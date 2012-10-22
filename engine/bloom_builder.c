@@ -18,7 +18,7 @@ static void _update(BloomBuilder* self, SSTBlockBuilder* block)
 
     Buffer* key = buffer_new(1);
     buffer_extend_by(self->buff, bytes);
-    DEBUG("%d bytes for %d entries allocated for the bloom filter", bytes, block->entries);
+//    DEBUG("%d bytes for %d entries allocated for the bloom filter", bytes, block->entries);
 
     char* array = self->buff->mem + self->buff->length;
     self->buff->length += bytes;
@@ -34,12 +34,15 @@ static void _update(BloomBuilder* self, SSTBlockBuilder* block)
 
         key->length = plen;
         buffer_putnstr(key, start, klen);
-        start += klen + vlen;
+        start += klen;
+
+        if (vlen > 1)
+            start += vlen - 1;
 
         uint32_t h = hash(key->mem, key->length, 0xbc9f1d34);
         const uint32_t delta = (h >> 17) | (h << 15);  // Rotate right 17 bits
 
-        INFO("Hash of %.*s = %d", key->length, key->mem, h);
+//        DEBUG("Hash of %.*s = %d", key->length, key->mem, h);
 
         for (size_t j = 0; j < NUM_PROBES; j++)
         {
@@ -71,13 +74,13 @@ void bloom_builder_free(BloomBuilder* self)
 
 void bloom_builder_generate(BloomBuilder* self, uint64_t start_off, SSTBlockBuilder* data)
 {
-    uint32_t index = kv_size(self->offsets);
-    INFO("Creating filter block n. %d [%" PRIu64 "-%" PRIu64, index, start_off, start_off + data->buffer->length);
+//    uint32_t index = kv_size(self->offsets);
+//    DEBUG("Creating filter block n. %d [%" PRIu64 "-%" PRIu64, index, start_off, start_off + data->buffer->length);
 
     uint32_t start = self->buff->length;
     kv_push(uint32_t, self->offsets, start);
     _update(self, data);
-    INFO("Filter block %d is %d bytes", index, self->buff->length - start);
+//    DEBUG("Filter block %d is %d bytes", index, self->buff->length - start);
 }
 
 void bloom_builder_finish(BloomBuilder* self)

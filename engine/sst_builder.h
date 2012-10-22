@@ -37,6 +37,6 @@ typedef struct _sst_builder {
 
 SSTBuilder* sst_builder_new(File* output);
 void sst_builder_free(SSTBuilder* self);
-void sst_builder_add(SSTBuilder* self, Variant* key, Variant* value);
+void sst_builder_add(SSTBuilder* self, Variant* key, Variant* value, OPT opt);
 
 #endif

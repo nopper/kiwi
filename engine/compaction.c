@@ -164,7 +164,12 @@ Compaction* compaction_new(SST *sst, int level)
     file_range_debug(self->current_range, "final current");
     file_range_debug(self->parent_range, "final parent");
 
-    // TODO: please check that the actual file you're reducing are actually > 1
+    if (vector_count(self->current_range->files) +
+        vector_count(self->parent_range->files) == 1)
+    {
+        compaction_free(self);
+        return NULL;
+    }
 
     INFO("Compacting %d+%d files (%" PRIu64 "+%" PRIu64 " bytes) in output level %d",
          vector_count(self->current_range->files),

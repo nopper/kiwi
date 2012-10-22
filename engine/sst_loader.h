@@ -29,16 +29,17 @@ typedef struct _sst_loader {
 
 SSTLoader* sst_loader_new(File* file, uint32_t level, uint32_t filenum);
 void sst_loader_free(SSTLoader* self);
-int sst_loader_get(SSTLoader* self, Variant* key, Variant* value);
+int sst_loader_get(SSTLoader* self, Variant* key, Variant* value, OPT *opt);
 
 typedef struct _sst_loader_iterator {
-    uint32_t block; // This is an integer indexing the index of SSTLoader
+    int block; // This is an integer indexing the index of SSTLoader
     unsigned valid:1;
 
     char *current;
     char *start, *stop;
     SSTLoader* loader;
 
+    OPT opt;
     Variant* key;
     Variant* value;
 } SSTLoaderIterator;

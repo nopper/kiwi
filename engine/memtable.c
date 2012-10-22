@@ -1,4 +1,5 @@
 #include <string.h>
+#include <assert.h>
 #include "memtable.h"
 #include "utils.h"
 #include "indexer.h"
@@ -29,9 +30,12 @@ static int _memtable_edit(MemTable* self, const Variant* key, const Variant* val
     // an encoded string that encompasses both the key and value supplied
     // by the user.
 
-    size_t klen = varint_length(key->length);      // key length
-    size_t vlen = varint_length(value->length);    // value length
-    size_t encoded_len = klen + vlen + key->length + value->length + 1; // + 1 for tag
+    size_t klen = varint_length(key->length);          // key length
+    size_t vlen = (opt == DEL) ? 1 : varint_length(value->length + 1);    // value length - 0 is reserved for tombstone
+    size_t encoded_len = klen + vlen + key->length + value->length;
+
+    if (opt == DEL)
+        assert(value->length == 0);
 
     char *mem = malloc(sizeof(char) * encoded_len);
     char *node_key = mem;
@@ -42,12 +46,12 @@ static int _memtable_edit(MemTable* self, const Variant* key, const Variant* val
     memcpy(node_key, key->mem, key->length);
     node_key += key->length;
 
-    *node_key = (opt == DEL) ? MARK_DELETED : MARK_ADDED;
-    node_key++;
+    if (opt == DEL)
+        encode_varint32(node_key, 0);
+    else
+        encode_varint32(node_key, value->length + 1);
 
-    encode_varint32(node_key, value->length);
     node_key += vlen;
-
     memcpy(node_key, value->mem, value->length);
 
     if (skiplist_insert(self->list, key->mem, key->length, opt, mem) == STATUS_OK_DEALLOC)
@@ -59,7 +63,6 @@ static int _memtable_edit(MemTable* self, const Variant* key, const Variant* val
         self->del_count++;
 
 //    DEBUG("memtable_edit: %.*s %.*s opt: %d", key->length, key->mem, value->length, value->mem, opt);
-
 
     return 1;
 }
@@ -86,14 +89,13 @@ int memtable_get(MemTable* self, const Variant *key, Variant* value)
     const char* encoded = node->data;
     encoded += varint_length(key->length) + key->length;
 
-    if (*encoded == MARK_DELETED)
-        return 1;
-
-    encoded++;
-
     uint32_t encoded_len = 0;
     encoded = get_varint32(encoded, encoded + 5, &encoded_len);
-    buffer_putnstr(value, encoded, encoded_len);
+
+    if (encoded_len > 1)
+        buffer_putnstr(value, encoded, encoded_len - 1);
+    else
+        return 0;
 
     return 1;
 }
@@ -114,18 +116,21 @@ void memtable_extract_node(SkipNode* node, Variant* key, Variant* value, OPT* op
     buffer_putnstr(key, encoded, length);
 
     encoded += length;
-    *opt = (*encoded == MARK_ADDED) ? ADD : DEL;
 
-    encoded++;
     length = 0;
     encoded = get_varint32(encoded, encoded + 5, &length);
+
+    if (length == 0)
+        *opt = DEL;
+    else
+        *opt = ADD;
 
     if (value)
     {
         buffer_clear(value);
 
         if (*opt == ADD)
-            buffer_putnstr(value, encoded, length);
+            buffer_putnstr(value, encoded, length - 1);
 
 //        DEBUG("memtable_extract_node: %.*s %.*s opt: %d", key->length, key->mem, value->length, value->mem, *opt);
     }

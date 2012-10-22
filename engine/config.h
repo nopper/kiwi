@@ -13,7 +13,7 @@
 
 #define RESTART_INTERVAL 16
 #define SKIPLIST_SIZE 1024 * 1024 * 100// Actually this is not the memory occupation
-#define MAX_SKIPLIST_ALLOCATION 1024 * 1024 * 100
+#define MAX_SKIPLIST_ALLOCATION 1024 * 1024 * 70
 
 #define POOL_SIZE 1024 * 8
 #define BLOCK_SIZE 4096
@@ -33,7 +33,7 @@
 #define GRANDPARENT_OVERLAP 10 * 2 * 1048576
 #define MAX_MEM_COMPACT_LEVEL 2
 
-//#define WITH_BLOOM_FILTER
+#define WITH_BLOOM_FILTER
 #define BITS_PER_KEY 10
 #define NUM_PROBES 7
 

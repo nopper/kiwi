@@ -4,6 +4,9 @@
 #include "sst_loader.h"
 #include "utils.h"
 #include "crc32.h"
+#ifdef WITH_BLOOM_FILTER
+#include "hash.h"
+#endif
 
 static int _read_block(SSTLoader* self, uint64_t offset, uint64_t size, char **begin, char **end)
 {
@@ -183,7 +186,7 @@ void sst_loader_free(SSTLoader* self)
     free(self);
 }
 
-IndexEntry* _get_index_entry(SSTLoader* self, Variant* key, uint32_t *block)
+IndexEntry* _get_index_entry(SSTLoader* self, Variant* key, int *block)
 {
     int ret;
     IndexEntry* entry;
@@ -210,6 +213,10 @@ IndexEntry* _get_index_entry(SSTLoader* self, Variant* key, uint32_t *block)
 //    DEBUG("[1 of 3] Key %.*s is contained in block <= %.*s", key->length, key->mem, entry->klen, entry->key);
 
 #ifdef WITH_BLOOM_FILTER
+    // Avoid bloom filters checking if we are actually iterating over the file
+    if (block)
+        return entry;
+
     // Check the bloom filter and see if the key is not inside this block
 
     char *position = self->file->base +
@@ -224,7 +231,7 @@ IndexEntry* _get_index_entry(SSTLoader* self, Variant* key, uint32_t *block)
     if (left < self->num_blocks - 1)
         next_offset = get_int32(position + sizeof(uint32_t));
 
-    INFO("Bloom filter for block %d left starts at off + %d (%d bytes)", left, offset, next_offset - offset);
+//    DEBUG("Bloom filter for block %d left starts at off + %d (%d bytes)", left, offset, next_offset - offset);
 
     char* array = self->file->base + self->bloom_off + offset;
     size_t bits = (next_offset - offset) * 8;// -1) ?
@@ -232,14 +239,14 @@ IndexEntry* _get_index_entry(SSTLoader* self, Variant* key, uint32_t *block)
     uint32_t h = hash(key->mem, key->length, 0xbc9f1d34);
     const uint32_t delta = (h >> 17) | (h << 15);  // Rotate right 17 bits
 
-    DEBUG("Hash of %.*s = %d", key->length, key->mem, h);
+//    DEBUG("Hash of %.*s = %d", key->length, key->mem, h);
 
     for (size_t j = 0; j < NUM_PROBES; j++)
     {
         const uint32_t bitpos = h % bits;
         if ((array[bitpos / 8] & (1 << (bitpos % 8))) == 0)
         {
-            INFO("Bloom filters match!");
+//            INFO("Bloom filters match!");
             return NULL;
         }
         h += delta;
@@ -249,7 +256,7 @@ IndexEntry* _get_index_entry(SSTLoader* self, Variant* key, uint32_t *block)
     return entry;
 }
 
-int sst_loader_get(SSTLoader* self, Variant* key, Variant* value)
+int sst_loader_get(SSTLoader* self, Variant* key, Variant* value, OPT* opt)
 {
     IndexEntry* entry = _get_index_entry(self, key, NULL);
 
@@ -267,7 +274,7 @@ int sst_loader_get(SSTLoader* self, Variant* key, Variant* value)
     // [start - stop] points to the actual data, not the restarts array
     uint32_t left = 0;
     uint32_t right = num_restarts - 1;
-    uint32_t plen, klen, vlen;
+    uint32_t plen = 0, klen = 0, vlen = 0;
 
     while (left < right)
     {
@@ -288,12 +295,19 @@ int sst_loader_get(SSTLoader* self, Variant* key, Variant* value)
             right = mid - 1;
     }
 
-//    DEBUG("Left is %d Right is %d", left, right);
+//    DEBUG("Left is %d Right is %d VLEN is %d RET is %d", left, right, vlen, ret);
     buffer_clear(value);
 
     if (ret == 0)
     {
-        buffer_putnstr(value, iter + klen, vlen);
+        if (vlen > 1)
+        {
+            *opt = ADD;
+            buffer_putnstr(value, iter + klen, vlen - 1);
+        }
+        else
+            *opt = DEL;
+
         return 1;
     }
 
@@ -313,7 +327,7 @@ int sst_loader_get(SSTLoader* self, Variant* key, Variant* value)
 
         ret = string_cmp(value->mem, key->mem, value->length, key->length);
 
-        iter += klen + vlen;
+        iter += klen + MAX(0, vlen - 1);
 
 //        DEBUG("Comparing %.*s with %.*s = %d", key->length, key->mem, value->length, value->mem, ret);
     } while (ret < 0 && iter < stop);
@@ -322,7 +336,14 @@ int sst_loader_get(SSTLoader* self, Variant* key, Variant* value)
 
     if (ret == 0)
     {
-        buffer_putnstr(value, iter - vlen, vlen);
+        if (vlen > 1)
+        {
+            buffer_putnstr(value, iter - (vlen - 1), vlen - 1);
+            *opt = ADD;
+        }
+        else
+            *opt = DEL;
+
         return 1;
     }
 
@@ -362,14 +383,14 @@ static void _sst_loader_iterator_find(SSTLoaderIterator* iter, Variant* key)
     IndexEntry* entry = _get_index_entry(iter->loader, key, &iter->block);
     assert(entry != NULL);
 
-    int ret;
+    int ret = -2;
     uint32_t num_restarts = _sst_loader_read_block(iter, entry);
 
     uint32_t left = 0;
     uint32_t right = num_restarts - 1;
-    uint32_t plen, klen, vlen;
+    uint32_t plen = 0, klen = 0, vlen = 0;
 
-    char *ptr = NULL;
+    char *ptr = iter->start;
 
     while (left < right)
     {
@@ -396,8 +417,19 @@ static void _sst_loader_iterator_find(SSTLoaderIterator* iter, Variant* key)
     {
         iter->valid = 1;
         buffer_putnstr(iter->key, key->mem, key->length);
-        buffer_putnstr(iter->value, ptr + klen, vlen);
-        iter->start = ptr + klen + vlen;
+
+        if (vlen > 1)
+        {
+            iter->opt = ADD;
+            buffer_putnstr(iter->value, ptr + klen, vlen - 1);
+        }
+        else
+            iter->opt = DEL;
+
+        iter->start = ptr + klen;
+
+        if (vlen > 1)
+            iter->start += vlen - 1;
 
         return;
     }
@@ -410,16 +442,34 @@ static void _sst_loader_iterator_find(SSTLoaderIterator* iter, Variant* key)
         ptr = (char *)get_varint32(ptr, ptr + 5, &klen);
         ptr = (char *)get_varint32(ptr, ptr + 5, &vlen);
 
+        assert(plen <= iter->key->length);
+
         iter->key->length = plen;
         buffer_putnstr(iter->key, ptr, klen);
 
         ret = string_cmp(iter->key->mem, key->mem, iter->key->length, key->length);
 
-        ptr += klen + vlen;
+        ptr += klen;
+
+        if (vlen > 1)
+            ptr += vlen - 1;
+
     } while (ret < 0 && ptr < iter->stop);
 
+    if (ptr >= iter->stop)
+    {
+        iter->valid = 0;
+        iter->start = iter->stop;
+    }
 
-    buffer_putnstr(iter->value, ptr - vlen, vlen);
+    if (vlen > 1)
+    {
+        iter->opt = ADD;
+        buffer_putnstr(iter->value, ptr - (vlen - 1), vlen - 1);
+    }
+    else
+        iter->opt = DEL;
+
     iter->start = ptr;
     iter->valid = 1;
 }
@@ -434,6 +484,7 @@ SSTLoaderIterator* sst_loader_iterator_seek(SSTLoader* self, Variant* key)
     iter->key = buffer_new(32);
     iter->value = buffer_new(32);
     iter->valid = 0;
+    iter->opt = ADD;
 
     if (!key)
         _sst_loader_iterator_next_block(iter);
@@ -463,18 +514,28 @@ void sst_loader_iterator_next(SSTLoaderIterator* iter)
         return;
     }
 
-    uint32_t plen, klen, vlen;
+    uint32_t plen = 0, klen = 0, vlen = 0;
     iter->start = (char *)get_varint32(iter->start, iter->start + 5, &plen);
     iter->start = (char *)get_varint32(iter->start, iter->start + 5, &klen);
     iter->start = (char *)get_varint32(iter->start, iter->start + 5, &vlen);
+
+    assert(plen <= iter->key->length);
 
     iter->key->length = plen;
     buffer_putnstr(iter->key, iter->start, klen);
     iter->start += klen;
 
     buffer_clear(iter->value);
-    buffer_putnstr(iter->value, iter->start, vlen);
-    iter->start += vlen;
+
+    if (vlen > 1)
+    {
+        iter->opt = ADD;
+        buffer_putnstr(iter->value, iter->start, vlen - 1);
+        iter->start += vlen - 1;
+    }
+    else
+        iter->opt = DEL;
+
     iter->valid = 1;
 }
 

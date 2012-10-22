@@ -23,7 +23,7 @@ void db_close(DB *self)
 {
     INFO("Closing database %d", self->memtable->add_count);
 
-    if (self->memtable->add_count > 0)
+    if (self->memtable->list->count > 0)
         sst_merge(self->sst, self->memtable->list);
 
     memtable_free(self->memtable);
@@ -123,9 +123,11 @@ static void _db_iterator_add_level0(DBIterator* self, Variant* key)
             vector_add(files, sst->files[0][j]);
         else
         {
+            size_t num_files = vector_count(files);
+            SSTMetadata** arr = vector_release(files);
+
             vector_add(self->iterators,
-                       chained_iterator_new_seek(vector_count(files),
-                                                 (SSTMetadata **)vector_release(files), key));
+                       chained_iterator_new_seek(num_files, arr, key));
 
             i = j;
             vector_add(files, sst->files[0][i]);
@@ -162,12 +164,21 @@ void db_iterator_seek(DBIterator* self, Variant* key)
             continue;
 
         for (; i < sst->num_files[level]; i++)
+        {
+            DEBUG("Iterator will include: %d [%.*s, %.*s]",
+                  sst->files[level][i]->filenum,
+                  sst->files[level][i]->smallest_key->length,
+                  sst->files[level][i]->smallest_key->mem,
+                  sst->files[level][i]->largest_key->length,
+                  sst->files[level][i]->largest_key->mem);
             vector_add(files, (void*)sst->files[level][i]);
+        }
+
+        size_t num_files = vector_count(files);
+        SSTMetadata** arr = vector_release(files);
 
         vector_add(self->iterators,
-                   chained_iterator_new_seek(
-                       vector_count(files),
-                       (SSTMetadata **)vector_release(files), key));
+                   chained_iterator_new_seek(num_files, arr, key));
     }
 
     vector_free(files);
@@ -226,6 +237,9 @@ start:
         self->valid = 1;
 
         if (iter->skip == 1)
+            goto start;
+
+        if (iter->current->opt == DEL)
             goto start;
     }
     else

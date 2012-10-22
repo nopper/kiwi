@@ -101,7 +101,7 @@ static void _write_footer(SSTBuilder* self)
 #endif
 
     // Here just save as indexing term the last key and then we save the index block
-    sst_block_builder_add(self->index_block, self->data_block->last_key, self->last_block_offset);
+    sst_block_builder_add(self->index_block, self->data_block->last_key, self->last_block_offset, ADD);
 
     // Write the actual metadata
     buffer_clear(self->last_key);
@@ -208,9 +208,9 @@ void sst_builder_free(SSTBuilder* self)
     free(self);
 }
 
-void sst_builder_add(SSTBuilder* self, Variant* key, Variant* value)
+void sst_builder_add(SSTBuilder* self, Variant* key, Variant* value, OPT opt)
 {
-//    DEBUG("ADD: %.*s %.*s %d", key->length, key->mem, value->length, value->mem, self->pending_index);
+//    DEBUG("ADD: %.*s %.*s %d %d", key->length, key->mem, value->length, value->mem, opt, self->pending_index);
 
     self->block_written = 0;
 
@@ -224,11 +224,11 @@ void sst_builder_add(SSTBuilder* self, Variant* key, Variant* value)
     {
         // Extract the shortest separator that indexes the block >= all keys
         shortest_separator(self->last_key, key);
-        sst_block_builder_add(self->index_block, self->last_key, self->last_block_offset);
+        sst_block_builder_add(self->index_block, self->last_key, self->last_block_offset, ADD);
         self->pending_index = 0;
     }
 
-    sst_block_builder_add(self->data_block, key, value);
+    sst_block_builder_add(self->data_block, key, value, opt);
 
     self->metadata_num_entries++;
     self->metadata_key_size += key->length;

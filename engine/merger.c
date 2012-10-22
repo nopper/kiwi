@@ -92,6 +92,10 @@ ChainedIterator* chained_iterator_new_seek(uint32_t num_files, SSTMetadata** fil
     iterator->files = files;
     iterator->num_files = num_files;
     iterator->current = sst_loader_iterator_seek((*(iterator->files + iterator->pos++))->loader, key);
+
+    DEBUG("Creating a chained iterator of %d files (seek: %.*s)", num_files, key->length, key->mem);
+    for (int i = 0; i < num_files; i++)
+        DEBUG("  => %d", (*(SSTMetadata**)files + i)->filenum);
     return iterator;
 }
 
@@ -245,5 +249,10 @@ Variant* merge_iterator_key(MergeIterator* self)
 Variant* merge_iterator_value(MergeIterator* self)
 {
     return self->current->current->value;
+}
+
+OPT merge_iterator_opt(MergeIterator* self)
+{
+    return self->current->current->opt;
 }
 

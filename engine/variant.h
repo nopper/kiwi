@@ -3,6 +3,7 @@
 
 #include "buffer.h"
 
+typedef enum {ADD,DEL} OPT;
 typedef Buffer Variant;
 
 #endif

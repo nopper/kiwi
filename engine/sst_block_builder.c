@@ -1,3 +1,4 @@
+#include <assert.h>
 #include "sst_block_builder.h"
 #include "indexer.h"
 #include "lib/kvec.h"
@@ -31,7 +32,7 @@ void sst_block_builder_free(SSTBlockBuilder* self)
     free(self);
 }
 
-void sst_block_builder_add(SSTBlockBuilder* self, Variant* key, Variant* value)
+void sst_block_builder_add(SSTBlockBuilder* self, Variant* key, Variant* value, OPT opt)
 {
     size_t shared = 0;
 
@@ -57,10 +58,13 @@ void sst_block_builder_add(SSTBlockBuilder* self, Variant* key, Variant* value)
 //    DEBUG("Key: %.*s Value: %.*s shared: %d non-shared: %d",
 //          key->length, key->mem, value->length, value->mem, shared, non_shared);
 
+    if (opt == DEL)
+        assert(value->length == 0);
+
     // Add preamble <shared><non-shared><value-length>
     buffer_putvarint32(self->buffer, shared);
     buffer_putvarint32(self->buffer, non_shared);
-    buffer_putvarint32(self->buffer, value->length);
+    buffer_putvarint32(self->buffer, value->length + ((opt == ADD) ? 1 : 0));
 
     // Add actual value <non-shared-key><value>
     buffer_putnstr(self->buffer, key->mem + shared, non_shared);

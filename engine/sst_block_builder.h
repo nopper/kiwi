@@ -49,7 +49,7 @@ typedef struct _sst_block_builder {
 SSTBlockBuilder* sst_block_builder_new(uint32_t flags, uint32_t restart_interval);
 void sst_block_builder_free(SSTBlockBuilder* self);
 
-void sst_block_builder_add(SSTBlockBuilder* self, Variant* key, Variant* value);
+void sst_block_builder_add(SSTBlockBuilder* self, Variant* key, Variant* value, OPT opt);
 size_t sst_block_builder_current_size(SSTBlockBuilder* self);
 void sst_block_builder_flush(SSTBlockBuilder* self);
 void sst_block_builder_reset(SSTBlockBuilder* self);
