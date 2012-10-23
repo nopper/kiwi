@@ -95,8 +95,14 @@ ChainedIterator* chained_iterator_new_seek(uint32_t num_files, SSTMetadata** fil
 
     DEBUG("Creating a chained iterator of %d files (seek: %.*s)", num_files, key->length, key->mem);
     for (int i = 0; i < num_files; i++)
-        DEBUG("  => %d", (*(SSTMetadata**)files + i)->filenum);
+        DEBUG("  => %d", (SSTMetadata**)files[i]->filenum);
     return iterator;
+}
+
+void chained_iterator_free(ChainedIterator* iterator)
+{
+    free(iterator->files);
+    free(iterator);
 }
 
 void merge_iterator_free(MergeIterator *self)
@@ -117,6 +123,8 @@ void merge_iterator_free(MergeIterator *self)
 MergeIterator* merge_iterator_new(struct _compaction* comp)
 {
     MergeIterator* self = malloc(sizeof(MergeIterator));
+
+    self->overlap_check = 0;
 
     FileRange* inputs1 = comp->current_range;
     FileRange* inputs2 = comp->parent_range;

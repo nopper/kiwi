@@ -51,6 +51,8 @@ static void _update(BloomBuilder* self, SSTBlockBuilder* block)
             h += delta;
         }
     }
+
+    buffer_free(key);
 }
 
 BloomBuilder* bloom_builder_new(size_t bits_per_key)
@@ -68,6 +70,7 @@ BloomBuilder* bloom_builder_new(size_t bits_per_key)
 
 void bloom_builder_free(BloomBuilder* self)
 {
+    buffer_free(self->buff);
     kv_destroy(self->offsets);
     free(self);
 }

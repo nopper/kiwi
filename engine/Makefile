@@ -19,7 +19,8 @@ LIBINDEXER_OBJ = \
 	crc32.o \
 	file.o \
 	heap.o \
-	vector.o
+	vector.o \
+	lru.o
 
 LIBINDEXER = libindexer.so
 

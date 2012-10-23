@@ -210,7 +210,7 @@ static int _read_manifest(SST* self)
                  meta->smallest_key->length, meta->smallest_key->mem,
                  meta->largest_key->length, meta->largest_key->mem);
 
-            meta->loader = sst_loader_new(file, curr_level, curr_num);
+            meta->loader = sst_loader_new(self->cache, file, curr_level, curr_num);
             meta->filesize = file_size(file);
 
             if (meta->loader)
@@ -251,6 +251,8 @@ SST* sst_new(const char* basedir)
     self->under_compaction = 0;
     self->targets = vector_new(); // Used to speed up the get
 
+    self->cache = lru_new(LRU_CACHE_SIZE);
+
     self->comp_level = -1;
     self->comp_score = -1;
 
@@ -284,6 +286,7 @@ void sst_free(SST* self)
     }
 
     vector_free(self->targets);
+    lru_free(self->cache);
     free(self);
 }
 
@@ -374,7 +377,7 @@ int sst_file_new(SST* self, uint32_t level, File** file, SSTBuilder** builder, S
     return 1;
 }
 
-static void _sst_merge_into(SkipNode* node, SkipNode* last, size_t count, SSTMetadata* meta, File* file, SSTBuilder* builder)
+static void _sst_merge_into(SST* self, SkipNode* node, SkipNode* last, size_t count, SSTMetadata* meta, File* file, SSTBuilder* builder)
 {
     OPT opt;
     Variant* key = buffer_new(1024);
@@ -405,7 +408,7 @@ static void _sst_merge_into(SkipNode* node, SkipNode* last, size_t count, SSTMet
     // Now we need to create an sst loader and insert it in the right place
     // and we just reuse the file object we have
     meta->filesize = file_size(file);
-    meta->loader = sst_loader_new(file, meta->level, meta->filenum);
+    meta->loader = sst_loader_new(self->cache, file, meta->level, meta->filenum);
 }
 
 void sst_merge(SST* self, SkipList* list)
@@ -439,7 +442,7 @@ void sst_merge(SST* self, SkipList* list)
     }
 
     INFO("Compaction of %d [%d bytes allocated] elements started", list->count, list->allocated);
-    _sst_merge_into(first, list->hdr, list->count, meta, file, builder);
+    _sst_merge_into(self, first, list->hdr, list->count, meta, file, builder);
     sst_file_add(self, meta);
     INFO("Compaction of %d elements finished", list->count);
 }

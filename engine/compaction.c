@@ -190,7 +190,7 @@ static void _compaction_close_pending(Compaction* self)
         // Now we need to create an sst loader and insert it in the right place
         // and we just reuse the file object we have
         self->meta->filesize = file_size(self->file);
-        self->meta->loader = sst_loader_new(self->file, self->meta->level, self->meta->filenum);
+        self->meta->loader = sst_loader_new(self->sst->cache, self->file, self->meta->level, self->meta->filenum);
 
         vector_add(self->outputs, (void**)self->meta);
 

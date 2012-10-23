@@ -78,6 +78,10 @@ DBIterator* db_iterator_new(DB* db)
 
 void db_iterator_free(DBIterator* self)
 {
+    for (int i = 0; i < vector_count(self->iterators); i++)
+        chained_iterator_free((ChainedIterator *)vector_get(self->iterators, i));
+
+    heap_free(self->minheap);
     vector_free(self->iterators);
     buffer_free(self->sl_key);
     buffer_free(self->sl_value);
@@ -226,6 +230,8 @@ start:
                 assert(iter->current->valid);
                 heap_insert(self->minheap, iter);
             }
+            else
+                sst_loader_iterator_free(iter->current);
         }
     }
 

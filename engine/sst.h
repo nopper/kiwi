@@ -8,6 +8,7 @@
 #include "variant.h"
 #include "vector.h"
 #include "file.h"
+#include "lru.h"
 
 /*
  * We organize the entire SST in directories. The basedir just
@@ -46,6 +47,7 @@ typedef struct _sst {
     double comp_score;
 
     Vector* targets;
+    LRU* cache;
 
     // Files in level 0 may overlap regarding ranges, while in upper levels
     // this is not allowed

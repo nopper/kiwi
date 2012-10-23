@@ -10,6 +10,22 @@
 
 static int _read_block(SSTLoader* self, uint64_t offset, uint64_t size, char **begin, char **end)
 {
+    LRUKey lru_key;
+    LRUValue lru_value;
+
+    lru_key.filenum = self->filenum;
+    lru_key.offset = offset;
+
+    if (lru_get(self->cache, &lru_key, &lru_value) == 1)
+    {
+        *begin = lru_value.start;
+        *end = lru_value.stop;
+
+        INFO("LRU cache hit! :)");
+        return 1;
+    }
+
+    // get from lru(self->filenum, offset, &start, &stop)
     char* start = self->file->base + offset;
     char* stop = start + size - sizeof(uint32_t) * 2;
 
@@ -31,6 +47,19 @@ static int _read_block(SSTLoader* self, uint64_t offset, uint64_t size, char **b
 
     *begin = start;
     *end = stop;
+
+    start = malloc(*end - *begin);
+    memcpy(start, *begin, *end - *begin);
+    stop = start + (*end - *begin);
+
+    *begin = start;
+    *end = stop;
+
+
+    lru_value.start = start;
+    lru_value.stop = stop;
+
+    lru_set(self->cache, &lru_key, &lru_value);
 
     return 1;
 }
@@ -140,7 +169,7 @@ static int _read_footer(SSTLoader* self)
     return 1;
 }
 
-SSTLoader* sst_loader_new(File* file, uint32_t level, uint32_t filenum)
+SSTLoader* sst_loader_new(LRU* cache, File* file, uint32_t level, uint32_t filenum)
 {
     SSTLoader* self = calloc(1, sizeof(SSTLoader));
 
@@ -150,6 +179,7 @@ SSTLoader* sst_loader_new(File* file, uint32_t level, uint32_t filenum)
     self->file = file;
     self->level = level;
     self->filenum = filenum;
+    self->cache = cache;
 
     kv_init(self->index);
 

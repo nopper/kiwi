@@ -1,9 +1,12 @@
+#define _BSD_SOURCE
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
+#include <errno.h>
 #include <sys/mman.h>
+#include "indexer.h"
 #include "file.h"
 
 File* file_new(void)
@@ -54,7 +57,12 @@ int mmapped_file_new(File* self)
     void* ptr = mmap(NULL, self->map_size, PROT_READ, MAP_SHARED, self->fd, 0);
 
     if (ptr == MAP_FAILED)
+    {
+        ERROR("Unable to unmap %s: %s", self->filename, strerror(errno));
         return 0;
+    }
+
+    INFO("Mapping of %d bytes for %s", self->map_size, self->filename);
 
     self->base = ptr;
     self->current = self->limit = (char *)ptr + self->map_size;
@@ -80,7 +88,12 @@ int _unmap_region(File* self)
         size_t size = self->limit - self->base;
 
         if (munmap(self->base, size) != 0)
+        {
+            ERROR("Unable to unmap %s: %s", self->filename, strerror(errno));
             ret = 0;
+        }
+        else
+            INFO("Unmapping %d bytes for %s", size, self->filename);
 
         self->offset += size;
         self->base = self->limit = self->current = NULL;
@@ -95,18 +108,19 @@ int _unmap_region(File* self)
 
 int _map_new_region(File* self)
 {
-//    DEBUG("Truncating file to %d bytes", self->offset + self->map_size);
-
     if (ftruncate(self->fd, self->offset + self->map_size) < 0)
         return 0;
-
-//    DEBUG("Mapping %d bytes from %d offset %d", self->map_size, self->fd, self->offset);
 
     void* ptr = mmap(NULL, self->map_size, PROT_READ | PROT_WRITE, MAP_SHARED,
                      self->fd, self->offset);
 
     if (ptr == MAP_FAILED)
+    {
+        ERROR("Mapping of %d bytes for %s failed: %s", self->map_size, self->filename, strerror(errno));
         return 0;
+    }
+
+    INFO("Mapping of %d bytes for %s", self->map_size, self->filename);
 
     self->current = self->base = ptr;
     self->limit = self->base + self->map_size;
@@ -117,8 +131,6 @@ int file_append(File* self, Buffer* data)
 {
     const char* src = data->mem;
     size_t left = data->length;
-
-//    DEBUG("Appending %d bytes", left);
 
     while (left > 0)
     {
@@ -135,8 +147,6 @@ int file_append(File* self, Buffer* data)
         self->current += n;
         src += n;
         left -= n;
-
-//        DEBUG("Wrote %d bytes", n);
     }
 
     return 1;
@@ -153,12 +163,12 @@ int file_close(File* self)
     }
     else if (unused > 0)
     {
-        INFO("Truncating file to %d bytes", self->offset - unused);
+        DEBUG("Truncating file %s to %d bytes", self->filename, self->offset - unused);
         if (ftruncate(self->fd, self->offset - unused) < 0)
             ret = 0;
     }
 
-    if (close(self->fd) < 0)
+    if (self->fd != -1 && close(self->fd) < 0)
         ret = 0;
 
     self->fd = -1;

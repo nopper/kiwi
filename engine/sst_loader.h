@@ -7,6 +7,7 @@
 #include "lib/kvec.h"
 #include "file.h"
 #include "variant.h"
+#include "lru.h"
 
 typedef struct _index_entry {
     size_t klen; // Length of the index key
@@ -17,6 +18,7 @@ typedef struct _index_entry {
 } IndexEntry;
 
 typedef struct _sst_loader {
+    LRU* cache;
     uint32_t level;
     uint32_t filenum;
 
@@ -27,7 +29,7 @@ typedef struct _sst_loader {
     kvec_t(IndexEntry*) index;
 } SSTLoader;
 
-SSTLoader* sst_loader_new(File* file, uint32_t level, uint32_t filenum);
+SSTLoader* sst_loader_new(LRU *cache, File* file, uint32_t level, uint32_t filenum);
 void sst_loader_free(SSTLoader* self);
 int sst_loader_get(SSTLoader* self, Variant* key, Variant* value, OPT *opt);
 
