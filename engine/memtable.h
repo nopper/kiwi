@@ -11,11 +11,13 @@ typedef struct _memtable {
 } MemTable;
 
 MemTable* memtable_new(void);
+void memtable_reset(MemTable* self);
 void memtable_free(MemTable* self);
 
 int memtable_add(MemTable* self, const Variant *key, const Variant *value);
 int memtable_remove(MemTable* self, const Variant* key);
-int memtable_get(MemTable* self, const Variant* key, Variant* value);
+int memtable_get(SkipList* list, const Variant *key, Variant* value);
+
 
 // Utility function
 int memtable_needs_compaction(MemTable* self);

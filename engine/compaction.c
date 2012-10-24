@@ -111,8 +111,13 @@ Compaction* compaction_new(SST *sst, int level)
 
                 file_range_free(self->current_range);
                 self->current_range = missing;
+
+                missing = NULL;
             }
         }
+
+        if (missing)
+            file_range_free(missing);
     }
 
     if (level + 2 < MAX_LEVELS)
@@ -248,6 +253,10 @@ void compaction_install(Compaction* self)
 {
     _compaction_close_pending(self);
 
+#ifdef BACKGROUND_MERGE
+    pthread_mutex_lock(&self->sst->lock);
+#endif
+
     sst_file_delete(self->sst, self->current_range->level,
                     vector_count(self->current_range->files),
                     (SSTMetadata**)vector_data(self->current_range->files));
@@ -269,4 +278,8 @@ void compaction_install(Compaction* self)
 
     // TODO: without actually writing the manifest at every add just write it
     // here at the end of the function
+
+#ifdef BACKGROUND_MERGE
+    pthread_mutex_unlock(&self->sst->lock);
+#endif
 }

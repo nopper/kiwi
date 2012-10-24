@@ -21,7 +21,7 @@ static int _read_block(SSTLoader* self, uint64_t offset, uint64_t size, char **b
         *begin = lru_value.start;
         *end = lru_value.stop;
 
-        INFO("LRU cache hit! :)");
+        //INFO("LRU cache hit! :)");
         return 1;
     }
 

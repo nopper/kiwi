@@ -18,9 +18,17 @@ MemTable* memtable_new(void)
     return self;
 }
 
+void memtable_reset(MemTable* self)
+{
+    self->list = skiplist_new(SKIPLIST_SIZE);
+    self->add_count = 0;
+    self->del_count = 0;
+}
+
 void memtable_free(MemTable* self)
 {
-    skiplist_free(self->list);
+    if (self->list)
+        skiplist_free(self->list);
     free(self);
 }
 
@@ -79,9 +87,9 @@ int memtable_remove(MemTable* self, const Variant* key)
     return _memtable_edit(self, key, &value, DEL);
 }
 
-int memtable_get(MemTable* self, const Variant *key, Variant* value)
+int memtable_get(SkipList* list, const Variant *key, Variant* value)
 {
-    SkipNode* node = skiplist_lookup(self->list, key->mem, key->length);
+    SkipNode* node = skiplist_lookup(list, key->mem, key->length);
 
     if (!node)
         return 0;

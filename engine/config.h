@@ -12,8 +12,11 @@
 #define LEVEL_ERROR   3
 
 #define RESTART_INTERVAL 16
-#define SKIPLIST_SIZE 1024 * 1024 * 100// Actually this is not the memory occupation
-#define MAX_SKIPLIST_ALLOCATION 1024 * 1024 * 70
+//#define SKIPLIST_SIZE 1024 * 1024 * 100// Actually this is not the memory occupation
+//#define MAX_SKIPLIST_ALLOCATION 1024 * 1024 * 70
+
+#define SKIPLIST_SIZE 1000000
+#define MAX_SKIPLIST_ALLOCATION 8 * (2<<20)
 
 #define POOL_SIZE 1024 * 8
 #define BLOCK_SIZE 4096
@@ -26,7 +29,7 @@
 #define FOOTER_SIZE 40
 
 #define MAX_LEVELS 7
-#define MAX_FILES_LEVEL0 2
+#define MAX_FILES_LEVEL0 4
 #define MAX_FILES 100
 
 #define EXPANSION_LIMIT 15 * 2 * 1048576
@@ -38,5 +41,6 @@
 #define NUM_PROBES 7
 
 #define LRU_CACHE_SIZE 100
+#define BACKGROUND_MERGE
 
 #endif

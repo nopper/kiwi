@@ -24,7 +24,10 @@ void db_close(DB *self)
     INFO("Closing database %d", self->memtable->add_count);
 
     if (self->memtable->list->count > 0)
+    {
         sst_merge(self->sst, self->memtable->list);
+        self->memtable->list = NULL;
+    }
 
     memtable_free(self->memtable);
     sst_free(self->sst);
@@ -38,9 +41,7 @@ int db_add(DB* self, Variant* key, Variant* value)
         INFO("Starting compaction of the memtable after %d insertions and %d deletions",
              self->memtable->add_count, self->memtable->del_count);
         sst_merge(self->sst, self->memtable->list);
-
-        memtable_free(self->memtable);
-        self->memtable = memtable_new();
+        memtable_reset(self->memtable);
     }
 
     return memtable_add(self->memtable, key, value);
@@ -48,7 +49,7 @@ int db_add(DB* self, Variant* key, Variant* value)
 
 int db_get(DB* self, Variant* key, Variant* value)
 {
-    if (memtable_get(self->memtable, key, value) == 1)
+    if (memtable_get(self->memtable->list, key, value) == 1)
         return 1;
 
     return sst_get(self->sst, key, value);
@@ -154,6 +155,10 @@ static void _db_iterator_add_level0(DBIterator* self, Variant* key)
 
 void db_iterator_seek(DBIterator* self, Variant* key)
 {
+#ifdef BACKGROUND_MERGE
+    pthread_mutex_lock(&self->db->sst->lock);
+#endif
+
     _db_iterator_add_level0(self, key);
 
     int i = 0;
@@ -185,6 +190,9 @@ void db_iterator_seek(DBIterator* self, Variant* key)
                    chained_iterator_new_seek(num_files, arr, key));
     }
 
+#ifdef BACKGROUND_MERGE
+    pthread_mutex_unlock(&self->db->sst->lock);
+#endif
     vector_free(files);
 
     self->minheap = heap_new(vector_count(self->iterators), (comparator)chained_iterator_comp);

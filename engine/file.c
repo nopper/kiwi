@@ -92,8 +92,8 @@ int _unmap_region(File* self)
             ERROR("Unable to unmap %s: %s", self->filename, strerror(errno));
             ret = 0;
         }
-        else
-            INFO("Unmapping %d bytes for %s", size, self->filename);
+//        else
+//            INFO("Unmapping %d bytes for %s", size, self->filename);
 
         self->offset += size;
         self->base = self->limit = self->current = NULL;
@@ -120,7 +120,7 @@ int _map_new_region(File* self)
         return 0;
     }
 
-    INFO("Mapping of %d bytes for %s", self->map_size, self->filename);
+    //INFO("Mapping of %d bytes for %s", self->map_size, self->filename);
 
     self->current = self->base = ptr;
     self->limit = self->base + self->map_size;

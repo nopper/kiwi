@@ -62,15 +62,11 @@ static void _evaluate_compaction(SST* self)
         double score;
 
         if (level == 0)
-        {
             score = self->num_files[0] / MAX_FILES_LEVEL0;
-        }
         else
-        {
             score = (double)_size_for_level(self, level) / _max_size_for_level(level);
-        }
 
-        INFO("Score for level %d is %.3f", level, (float)score);
+        DEBUG("Score for level %d is %.3f", level, (float)score);
 
         if (score > comp_score)
         {
@@ -86,8 +82,65 @@ static void _evaluate_compaction(SST* self)
 static void _schedule_compaction(SST* self)
 {
     _evaluate_compaction(self);
+#ifndef BACKGROUND_MERGE
     sst_compact(self);
+#endif
 }
+
+#ifdef BACKGROUND_MERGE
+void sst_merge_real(SST* self, SkipList* list);
+
+static void merge_thread(void* data)
+{
+    volatile SST* sst = (SST*)data;
+
+    while (1)
+    {
+        pthread_mutex_lock(&sst->cv_lock);
+
+        while (sst->merge_state == 0)
+            pthread_cond_wait(&sst->cv, &sst->cv_lock);
+
+        if ((sst->merge_state & MERGE_STATUS_INPUT) == MERGE_STATUS_INPUT &&
+            sst->immutable)
+        {
+            INFO("Merging inside compaction thread");
+
+            sst_merge_real(sst, sst->immutable);
+
+            SkipList* toclean = sst->immutable;
+
+            INFO("Merge successfully completed");
+            INFO("Freeing up immutable skiplist");
+
+            SkipNode* first = skiplist_first(toclean);
+
+            for (int i = 0; i < toclean->count; i++)
+            {
+                free(first->data);
+                first = first->forward[0];
+            }
+
+            skiplist_free(toclean);
+        }
+
+        if ((sst->merge_state & MERGE_STATUS_EXIT) == MERGE_STATUS_EXIT)
+        {
+            INFO("Exiting from the merge thread as user requested");
+            pthread_mutex_unlock(&sst->cv_lock);
+            pthread_exit(0);
+        }
+
+        sst->immutable = NULL;
+        sst->merge_state = 0;
+
+        pthread_mutex_unlock(&sst->cv_lock);
+
+        _evaluate_compaction(sst);
+        sst_compact(sst);
+    }
+}
+#endif
 
 static int _compare_by_latest(const SSTMetadata** a, const SSTMetadata** b)
 {
@@ -264,11 +317,34 @@ SST* sst_new(const char* basedir)
 
     _read_manifest(self);
 
+#ifdef BACKGROUND_MERGE
+    self->merge_state = 0;
+    self->immutable = NULL;
+
+    pthread_mutex_init(&self->lock, NULL);
+    pthread_mutex_init(&self->cv_lock, NULL);
+    pthread_cond_init(&self->cv, NULL);
+
+    pthread_create(&self->merge_thread, NULL, merge_thread, self);
+#endif
+
     return self;
 }
 
 void sst_free(SST* self)
 {
+#ifdef BACKGROUND_MERGE
+    INFO("Sending termination message to the detached thread");
+
+    pthread_mutex_lock(&self->cv_lock);
+    self->merge_state |= MERGE_STATUS_EXIT;
+    pthread_cond_signal(&self->cv);
+    pthread_mutex_unlock(&self->cv_lock);
+
+    INFO("Waiting the merger thread");
+    pthread_join(self->merge_thread, NULL);
+#endif
+
     _write_manifest(self);
 
     if (self->manifest)
@@ -296,8 +372,8 @@ static void _sst_file_delete(uint32_t tlen, uint32_t len, SSTMetadata** targets,
 
     while (i < tlen && src < len)
     {
-        SSTMetadata* target = *(targets + i);
-        SSTMetadata* current = *(arr + dst);
+        SSTMetadata* target = targets[i];//*(targets + i);
+        SSTMetadata* current = arr[dst];//*(arr + dst);
 
         if (target == current)
         {
@@ -383,7 +459,7 @@ static void _sst_merge_into(SST* self, SkipNode* node, SkipNode* last, size_t co
     Variant* key = buffer_new(1024);
     Variant* value = buffer_new(1024);
 
-    for (int i = 0; i < count && node != last; i++)
+    for (int i = 0; i < count/* && node != last*/; i++)
     {
         memtable_extract_node(node, key, value, &opt);
 
@@ -395,7 +471,9 @@ static void _sst_merge_into(SST* self, SkipNode* node, SkipNode* last, size_t co
 
         sst_builder_add(builder, key, value, opt);
 
+#ifndef BACKGROUND_MERGE
         free(node->data);
+#endif
         node = node->forward[0];
     }
 
@@ -412,6 +490,26 @@ static void _sst_merge_into(SST* self, SkipNode* node, SkipNode* last, size_t co
 }
 
 void sst_merge(SST* self, SkipList* list)
+#ifdef BACKGROUND_MERGE
+{
+    pthread_mutex_lock(&self->cv_lock);
+
+    while (self->merge_state != 0)
+    {
+        pthread_mutex_unlock(&self->cv_lock);
+        usleep(1000);
+        pthread_mutex_lock(&self->cv_lock);
+    }
+
+    self->immutable = list;
+    self->merge_state |= MERGE_STATUS_INPUT;
+
+    pthread_cond_signal(&self->cv);
+    pthread_mutex_unlock(&self->cv_lock);
+}
+
+void sst_merge_real(SST* self, SkipList* list)
+#endif
 {
     INFO("Compacting the memtable to a SST file");
 
@@ -436,19 +534,43 @@ void sst_merge(SST* self, SkipList* list)
     buffer_free(largest);
 
     if (!sst_file_new(self, level, &file, &builder, &meta))
-    {
-        ERROR("Unable to compact memtable");
-        return;
-    }
+        PANIC("Unable to compact memtable");
 
     INFO("Compaction of %d [%d bytes allocated] elements started", list->count, list->allocated);
     _sst_merge_into(self, first, list->hdr, list->count, meta, file, builder);
-    sst_file_add(self, meta);
     INFO("Compaction of %d elements finished", list->count);
+
+#ifdef BACKGROUND_MERGE
+    pthread_mutex_lock(&self->lock);
+#endif
+
+    // The lock must be held
+    sst_file_add(self, meta);
+
+#ifdef BACKGROUND_MERGE
+    pthread_mutex_unlock(&self->lock);
+#endif
 }
 
 int sst_get(SST* self, Variant* key, Variant* value)
 {
+#ifdef BACKGROUND_MERGE
+    int ret = 0;
+
+    pthread_mutex_lock(&self->cv_lock);
+    if (self->immutable)
+    {
+        DEBUG("Serving sst_get request from immutable memtable");
+        ret = memtable_get(self->immutable, key, value);
+    }
+    pthread_mutex_unlock(&self->cv_lock);
+
+    if (ret)
+        return ret;
+
+    pthread_mutex_lock(&self->lock);
+#endif
+
     vector_clear(self->targets);
 
     for (int level = 0; level < MAX_LEVELS; level++)
@@ -488,6 +610,10 @@ int sst_get(SST* self, Variant* key, Variant* value)
             vector_add(self->targets, self->files[level][start]);
         }
     }
+
+#ifdef BACKGROUND_MERGE
+    pthread_mutex_unlock(&self->lock);
+#endif
 
     for (uint32_t i = 0; i < vector_count(self->targets); i++)
     {

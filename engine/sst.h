@@ -1,6 +1,7 @@
 #ifndef __SST_H__
 #define __SST_H__
 
+#include <pthread.h>
 #include "indexer.h"
 #include "skiplist.h"
 #include "sst_loader.h"
@@ -34,6 +35,9 @@ typedef struct _sst_metadata {
 SSTMetadata* sst_metadata_new(uint32_t level, uint32_t filenum);
 void sst_metadata_free(SSTMetadata* self);
 
+#define MERGE_STATUS_EXIT  1
+#define MERGE_STATUS_INPUT 2
+
 typedef struct _sst {
     char basedir[MAX_FILENAME];
 
@@ -48,6 +52,18 @@ typedef struct _sst {
 
     Vector* targets;
     LRU* cache;
+
+#ifdef BACKGROUND_MERGE
+    SkipList* immutable;
+
+    pthread_mutex_t lock;
+
+    int merge_state;
+    pthread_mutex_t cv_lock;
+    pthread_cond_t cv;
+
+    pthread_t merge_thread;
+#endif
 
     // Files in level 0 may overlap regarding ranges, while in upper levels
     // this is not allowed
