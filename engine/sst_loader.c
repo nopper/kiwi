@@ -4,8 +4,13 @@
 #include "sst_loader.h"
 #include "utils.h"
 #include "crc32.h"
+
 #ifdef WITH_BLOOM_FILTER
 #include "hash.h"
+#endif
+
+#ifdef WITH_SNAPPY
+#include <snappy-c.h>
 #endif
 
 static int _read_block(SSTLoader* self, uint64_t offset, uint64_t size, char **begin, char **end)
@@ -40,10 +45,33 @@ static int _read_block(SSTLoader* self, uint64_t offset, uint64_t size, char **b
         return 0;
     }
 
+#ifdef WITH_SNAPPY
     if (block_type == TYPE_SNAPPY_COMPRESSION)
     {
+        size_t output_length;
 
+        if (snappy_uncompressed_length(start, stop - start, &output_length) != SNAPPY_OK)
+            return 0;
+
+        char* output = (char*)malloc(output_length);
+
+        if (snappy_uncompress(start, stop - start, output, &output_length) != SNAPPY_OK)
+        {
+            free(output);
+            return 0;
+        }
+
+        *begin = output;
+        *end = output + output_length;
+
+        lru_value.start = output;
+        lru_value.stop = output + output_length;
+
+        lru_set(self->cache, &lru_key, &lru_value);
+
+        return 1;
     }
+#endif
 
     *begin = start;
     *end = stop;

@@ -1,3 +1,4 @@
+#define _BSD_SOURCE
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -92,7 +93,7 @@ void sst_merge_real(SST* self, SkipList* list);
 
 static void merge_thread(void* data)
 {
-    volatile SST* sst = (SST*)data;
+    SST* sst = (SST*)data;
 
     while (1)
     {

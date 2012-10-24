@@ -40,7 +40,8 @@
 #define BITS_PER_KEY 10
 #define NUM_PROBES 7
 
-#define LRU_CACHE_SIZE 100
+#define LRU_CACHE_SIZE 1000
 #define BACKGROUND_MERGE
+#define WITH_SNAPPY
 
 #endif

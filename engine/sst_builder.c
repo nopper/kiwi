@@ -1,5 +1,8 @@
 #include "sst_builder.h"
 #include "crc32.h"
+#ifdef WITH_SNAPPY
+#include <snappy-c.h>
+#endif
 
 static void shortest_separator(Variant *last_key, Variant *new_key)
 {
@@ -43,17 +46,55 @@ static void short_successor(Variant *last_key)
     }
 }
 
-static void _write_block(SSTBuilder* self, SSTBlockBuilder* block)
+static void _write_block(SSTBuilder* self, SSTBlockBuilder* block, int skip_comp)
 {
     // Write the contents of the block to the file
     sst_block_builder_flush(block);
-    uint32_t crc32 = crc32_extend(0, block->buffer->mem, block->buffer->length);
 
-    // TODO: compression here
-    buffer_putint32(block->buffer, TYPE_NO_COMPRESSION);
-    buffer_putint32(block->buffer, crc32);
+    uint32_t crc32;
+    int type = TYPE_NO_COMPRESSION;
+    size_t output_length = 0;
+    char* output = NULL;
+    Buffer *output_buffer, st_buffer;
 
-    file_append(self->file, block->buffer);
+#ifdef WITH_SNAPPY
+    if (!skip_comp)
+    {
+        output_length = snappy_max_compressed_length(block->buffer->length);
+        output = (char *)malloc(output_length + sizeof(uint32_t) * 2);
+
+        if (snappy_compress(block->buffer->mem, block->buffer->length, output, &output_length) != SNAPPY_OK
+            || ((float)output_length / (float)block->buffer->length) > 0.8)
+        {
+            free(output);
+            output = NULL;
+            output_length = 0;
+        }
+        else
+        {
+            type = TYPE_SNAPPY_COMPRESSION;
+
+            st_buffer.mem = output;
+            st_buffer.length = output_length;
+            st_buffer.allocated = output_length + sizeof(uint32_t) * 2;
+            output_buffer = &st_buffer;
+        }
+    }
+#endif
+
+    if (type == TYPE_NO_COMPRESSION)
+    {
+        output = block->buffer->mem;
+        output_length = block->buffer->length;
+        output_buffer = block->buffer;
+    }
+
+    crc32 = crc32_extend(0, output_buffer->mem, output_buffer->length);
+
+    buffer_putint32(output_buffer, type);
+    buffer_putint32(output_buffer, crc32);
+
+    file_append(self->file, output_buffer);
 
     // The value of the index is the offset in the file pointing to the
     // actual data block.
@@ -67,15 +108,18 @@ static void _write_block(SSTBuilder* self, SSTBlockBuilder* block)
         bloom_builder_generate(self->bloom, self->offset, self->data_block);
 #endif
 
-    self->offset += block->buffer->length;
-    buffer_putvarint64(self->last_block_offset, block->buffer->length);
+    self->offset += output_buffer->length;
+    buffer_putvarint64(self->last_block_offset, output_buffer->length);
+
+    if (type != TYPE_NO_COMPRESSION)
+        free(output);
 }
 
 static void _sst_builder_flush(SSTBuilder* self)
 {
     if (!self->block_written)
     {
-        _write_block(self, self->data_block);
+        _write_block(self, self->data_block, 0);
         self->metadata_num_blocks++;
     }
 
@@ -125,7 +169,7 @@ static void _write_footer(SSTBuilder* self)
     self->offset += meta_size;
 
     size_t index_off = self->offset;
-    _write_block(self, self->index_block);
+    _write_block(self, self->index_block, 1);
 
     size_t index_size = self->index_block->buffer->length;
     self->metadata_index_size = index_size;
