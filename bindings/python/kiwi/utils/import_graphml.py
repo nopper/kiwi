@@ -26,7 +26,7 @@ class GraphMLHandler(xml.sax.ContentHandler):
         self.graph = KiwiGraph(basepath)
         self.locator = None
 
-    @lru_cache(100000)
+    @lru_cache(100)
     def get_vertex(self, id):
         return self.graph.get_vertex(id)
 
