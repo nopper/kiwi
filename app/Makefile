@@ -1,19 +1,22 @@
 include ../defs.mk
 
-INDEXER_OBJ = main.o
 INDEXER = indexer
+STRESS = stress
 
-all: $(INDEXER)
+all: $(INDEXER) $(STRESS)
 
 .PHONY: all
 
-$(INDEXER): $(LIBINDEXER)
-	$(FINAL_LD) main.c -o $@ -lindexer -I../engine -L../engine $^
+$(INDEXER):
+	$(FINAL_LD) main.c -std=c99 -o $@ -lindexer -I../engine -L../engine $^
+
+$(STRESS):
+	$(FINAL_LD) stress.c -std=c99 -o $@ -lindexer -I../engine -L../engine $^
 
 %.o: %.c
 	$(FINAL_CC) -c $<
 
 clean:
-	rm -rf *.o $(LIBINDEXER) $(INDEXER)
+	rm -rf *.o $(STRESS) $(INDEXER)
 
 .PHONY: clean

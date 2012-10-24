@@ -22,6 +22,18 @@
     buffer_putstr(key, x); \
     db_get(db, key, value);
 
+void gen_random(char *s, const int len) {
+    static const char alphanum[] =
+        "0123456789"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz";
+
+    for (int i = 0; i < len; ++i) {
+        s[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
+    }
+
+    s[len] = 0;
+}
 
 int main(int argc, const char * argv[])
 {
@@ -32,52 +44,27 @@ int main(int argc, const char * argv[])
 
     srand(time(NULL));
 
-//    char skey[64];
-
-//    while (fscanf(stdin, "%s", skey) != EOF)
-//    {
-//      ADD(skey, skey);
-//    }
-
-    ADD("V7", "vertice 0");
-    ADD("V6", "vertice 1");
-    ADD("E5", "edge 2");
-
-    db_close(db);
-    db = db_open(START_DIRECTORY);
-
-    DEL("V7");
-    DEL("V6");
-
-    db_close(db);
-
-    db = db_open(START_DIRECTORY);
-
-    DEL("V7");
-    DEL("V6");
-
-    db_close(db);
-
-    db = db_open(START_DIRECTORY);
-#if 1
-    buffer_clear(key);
-    buffer_putstr(key, "\0");
-    key->length = 1;
-    DBIterator* iter = db_iterator_new(db);
-    db_iterator_seek(iter, key);
-
-    while (db_iterator_valid(iter))
+    for (int i = 0; i < 1000000; i++)
     {
-        Variant* k = db_iterator_key(iter);
-        Variant* v = db_iterator_value(iter);
-        INFO("====>: %.*s : %.*s", k->length, k->mem, v->length, v->mem);
-        db_iterator_next(iter);
-    }
-    db_iterator_free(iter);
-#endif
+        buffer_clear(key);
+        buffer_scatf(key, "%d", i);
 
-    GET("E5");
-    GET("E5");
+        buffer_clear(value);
+        gen_random(value->mem, 16);
+
+        db_add(db, key, value);
+    }
+
+    db_close(db);
+
+    db = db_open(START_DIRECTORY);
+
+    for (int i = 1000000 - 1; i >= 0; i--)
+    {
+        buffer_clear(key);
+        buffer_scatf(key, "%d", i);
+        db_get(db, key, value);
+    }
 
     db_close(db);
     buffer_free(key);
