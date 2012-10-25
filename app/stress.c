@@ -44,27 +44,39 @@ int main(int argc, const char * argv[])
 
     srand(time(NULL));
 
-    for (int i = 0; i < 1000000; i++)
+#define ITERATIONS 10000
+
+    for (int i = 0; i < ITERATIONS; i++)
     {
         buffer_clear(key);
         buffer_scatf(key, "%d", i);
 
         buffer_clear(value);
-        gen_random(value->mem, 16);
+//        gen_random(value->mem, 16);
+//        value->length = 16;
+        buffer_putstr(value, "AAAAAAAAAAAAAAAAAaa");
 
         db_add(db, key, value);
     }
 
     db_close(db);
 
+    INFO("Finished inserting");
+    sleep(10);
+    INFO("Start querying");
+
     db = db_open(START_DIRECTORY);
 
-    for (int i = 1000000 - 1; i >= 0; i--)
+    for (int i = ITERATIONS - 1; i >= 0; i--)
     {
         buffer_clear(key);
         buffer_scatf(key, "%d", i);
         db_get(db, key, value);
     }
+
+
+    INFO("Finished querying");
+    sleep(10);
 
     db_close(db);
     buffer_free(key);

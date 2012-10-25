@@ -53,3 +53,4 @@ engine/bloom_builder.c
 engine/bloom_builder.h
 engine/lru.c
 engine/lru.h
+app/stress.c
