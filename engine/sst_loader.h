@@ -34,6 +34,7 @@ void sst_loader_free(SSTLoader* self);
 int sst_loader_get(SSTLoader* self, Variant* key, Variant* value, OPT *opt);
 
 typedef struct _sst_loader_iterator {
+    int prev_block;
     int block; // This is an integer indexing the index of SSTLoader
     unsigned valid:1;
 

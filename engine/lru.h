@@ -3,6 +3,11 @@
 
 #include <sys/types.h>
 #include <inttypes.h>
+#include "config.h"
+
+#ifdef BACKGROUND_MERGE
+#include <pthread.h>
+#endif
 
 typedef struct _lru_key {
     int filenum;
@@ -15,6 +20,7 @@ typedef struct _lru_value {
 } LRUValue;
 
 typedef struct _lru_node {
+    int refcount;
     size_t size;
     LRUKey key;
     LRUValue value;
@@ -32,6 +38,9 @@ typedef struct _lru_list {
 struct _ht;
 
 typedef struct _lru {
+#ifdef BACKGROUND_MERGE
+    pthread_mutex_t lock;
+#endif
     uint64_t allow;
     LRUList* list;
     struct _ht* ht;
@@ -53,5 +62,6 @@ void lru_free(LRU* self);
 
 void lru_set(LRU* self, const LRUKey* key, const LRUValue *value);
 int lru_get(LRU* self, const LRUKey* key, LRUValue* value);
+void lru_release(LRU* self, const LRUKey* key);
 
 #endif

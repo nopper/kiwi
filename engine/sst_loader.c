@@ -13,6 +13,14 @@
 #include <snappy-c.h>
 #endif
 
+static void _release_block(SSTLoader* self, uint64_t offset, uint64_t size)
+{
+    LRUKey lru_key;
+    lru_key.filenum = self->filenum;
+    lru_key.offset = offset;
+    lru_release(self->cache, &lru_key);
+}
+
 static int _read_block(SSTLoader* self, uint64_t offset, uint64_t size, char **begin, char **end)
 {
     LRUKey lru_key;
@@ -359,6 +367,7 @@ int sst_loader_get(SSTLoader* self, Variant* key, Variant* value, OPT* opt)
 
         *opt = (vlen == 0) ? DEL : ADD;
 
+        _release_block(self, entry->offset, entry->size);
         return 1;
     }
 
@@ -392,9 +401,11 @@ int sst_loader_get(SSTLoader* self, Variant* key, Variant* value, OPT* opt)
 
         *opt = (vlen == 0) ? DEL : ADD;
 
+        _release_block(self, entry->offset, entry->size);
         return 1;
     }
 
+    _release_block(self, entry->offset, entry->size);
     return 0;
 }
 
@@ -415,9 +426,17 @@ static uint32_t _sst_loader_read_block(SSTLoaderIterator* iter, IndexEntry* entr
 static void _sst_loader_iterator_next_block(SSTLoaderIterator* iter)
 {
     iter->block++;
+    iter->prev_block++;
+
+    if (iter->prev_block >= 0)
+    {
+        IndexEntry* entry = kv_A(iter->loader->index, iter->prev_block);
+        _release_block(iter->loader, entry->offset, entry->size);
+    }
 
     if (iter->block >= kv_size(iter->loader->index))
     {
+        iter->block = iter->prev_block = -1;
         iter->valid = 0;
         return;
     }
@@ -518,6 +537,7 @@ SSTLoaderIterator* sst_loader_iterator_seek(SSTLoader* self, Variant* key)
 {
     SSTLoaderIterator* iter = malloc(sizeof(SSTLoaderIterator));
 
+    iter->prev_block = -2;
     iter->block = -1;
     iter->loader = self;
 
@@ -541,6 +561,18 @@ SSTLoaderIterator* sst_loader_iterator(SSTLoader* self)
 
 void sst_loader_iterator_free(SSTLoaderIterator *iter)
 {
+    if (iter->prev_block >= 0)
+    {
+        IndexEntry* entry = kv_A(iter->loader->index, iter->prev_block);
+        _release_block(iter->loader, entry->offset, entry->size);
+    }
+
+    if (iter->block >= 0 && iter->block < kv_size(iter->loader->index))
+    {
+        IndexEntry* entry = kv_A(iter->loader->index, iter->block);
+        _release_block(iter->loader, entry->offset, entry->size);
+    }
+
     buffer_free(iter->key);
     buffer_free(iter->value);
     free(iter);

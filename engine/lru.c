@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "lru.h"
+#include "indexer.h"
 
 static HT* hashtable_new(uint64_t capacity)
 {
@@ -28,7 +29,6 @@ static void hashtable_free(HT* ht)
             while (cur)
             {
                 nxt = cur->next;
-
                 free(cur);
                 cur = nxt;
             }
@@ -102,8 +102,7 @@ void hashtable_remove(HT* ht, const LRUKey* key)
             else
                 ht->buckets[slot] = cur->next;
 
-            if (cur)
-                free(cur);
+            free(cur);
 
             ht->size--;
             return;
@@ -202,6 +201,10 @@ LRU* lru_new(uint64_t size)
 {
     LRU* self = calloc(1, sizeof(LRU));
 
+#ifdef BACKGROUND_MERGE
+    pthread_mutex_init(&self->lock, NULL);
+#endif
+
     self->list = list_new();
     self->ht = hashtable_new(size);
     self->allow = size;
@@ -223,8 +226,22 @@ static void _lru_check(LRU* self)
         LRUNode* tail = self->list->tail;
         HT* ht = self->ht;
 
+        while (tail && tail->refcount > 0)
+        {
+            LRUNode* ref = tail;
+            tail = tail->prev;
+
+            self->list->tail = tail;
+            tail->next = NULL;
+
+            ref->next = self->list->head;
+            self->list->head->prev = ref;
+            ref->prev = NULL;
+            self->list->head = ref;
+        }
+
         /* free list tail */
-        if (tail)
+        if (tail && tail->refcount <= 0)
         {
             hashtable_remove(ht, &tail->key);
             list_remove(self->list, tail);
@@ -234,8 +251,12 @@ static void _lru_check(LRU* self)
 
 void lru_set(LRU* self, const LRUKey* key, const LRUValue* value)
 {
+#ifdef BACKGROUND_MERGE
+    pthread_mutex_lock(&self->lock);
+#endif
+
     if (self->allow == 0)
-        return;
+        goto out;
 
     _lru_check(self);
 
@@ -255,22 +276,54 @@ void lru_set(LRU* self, const LRUKey* key, const LRUValue* value)
     node->value.start = value->start;
     node->value.stop = value->stop;
 
+    node->refcount = 1;
     node->size = sizeof(LRUNode) + (value->stop - value->start);
 
     hashtable_set(self->ht, &node->key, node);
     list_push(self->list, node);
+
+    out:
+#ifdef BACKGROUND_MERGE
+    pthread_mutex_unlock(&self->lock);
+#endif
 }
 
 int lru_get(LRU* self, const LRUKey* key, LRUValue* value)
 {
+#ifdef BACKGROUND_MERGE
+    pthread_mutex_lock(&self->lock);
+#endif
+
+    int ret = 0;
     LRUNode* node = hashtable_get(self->ht, key);
 
     if (node)
     {
         value->start = node->value.start;
         value->stop = node->value.stop;
-        return 1;
+        node->refcount++;
+        ret = 1;
     }
 
-    return 0;
+#ifdef BACKGROUND_MERGE
+    pthread_mutex_unlock(&self->lock);
+#endif
+
+    return ret;
+}
+
+void lru_release(LRU* self, const LRUKey* key)
+{
+#ifdef BACKGROUND_MERGE
+    pthread_mutex_lock(&self->lock);
+#endif
+
+    LRUNode* node = hashtable_get(self->ht, key);
+
+    if (node)
+        node->refcount--;
+
+#ifdef BACKGROUND_MERGE
+    pthread_mutex_unlock(&self->lock);
+#endif
 }
