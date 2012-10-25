@@ -26,7 +26,6 @@ static int _read_block(SSTLoader* self, uint64_t offset, uint64_t size, char **b
         *begin = lru_value.start;
         *end = lru_value.stop;
 
-        //INFO("LRU cache hit! :)");
         return 1;
     }
 
@@ -101,16 +100,13 @@ static int _load_index(SSTLoader* self, uint64_t offset, uint64_t size)
     uint32_t block_crc32 = get_int32(stop + sizeof(uint32_t));
     uint32_t actual_crc32 = crc32_extend(0, start, stop - start);
 
+    assert(block_type == 0);
+
     if (actual_crc32 != block_crc32)
     {
         ERROR("Index block seems to be corrupted. Data CRC: %X Block CRC: %X",
               actual_crc32, block_crc32);
         return 0;
-    }
-
-    if (block_type == TYPE_SNAPPY_COMPRESSION)
-    {
-
     }
 
     uint32_t vlen;
@@ -359,12 +355,9 @@ int sst_loader_get(SSTLoader* self, Variant* key, Variant* value, OPT* opt)
     if (ret == 0)
     {
         if (vlen > 1)
-        {
-            *opt = ADD;
             buffer_putnstr(value, iter + klen, vlen - 1);
-        }
-        else
-            *opt = DEL;
+
+        *opt = (vlen == 0) ? DEL : ADD;
 
         return 1;
     }
@@ -395,12 +388,9 @@ int sst_loader_get(SSTLoader* self, Variant* key, Variant* value, OPT* opt)
     if (ret == 0)
     {
         if (vlen > 1)
-        {
             buffer_putnstr(value, iter - (vlen - 1), vlen - 1);
-            *opt = ADD;
-        }
-        else
-            *opt = DEL;
+
+        *opt = (vlen == 0) ? DEL : ADD;
 
         return 1;
     }
@@ -477,13 +467,9 @@ static void _sst_loader_iterator_find(SSTLoaderIterator* iter, Variant* key)
         buffer_putnstr(iter->key, key->mem, key->length);
 
         if (vlen > 1)
-        {
-            iter->opt = ADD;
             buffer_putnstr(iter->value, ptr + klen, vlen - 1);
-        }
-        else
-            iter->opt = DEL;
 
+        iter->opt = (vlen == 0) ? DEL : ADD;
         iter->start = ptr + klen;
 
         if (vlen > 1)
@@ -521,13 +507,9 @@ static void _sst_loader_iterator_find(SSTLoaderIterator* iter, Variant* key)
     }
 
     if (vlen > 1)
-    {
-        iter->opt = ADD;
         buffer_putnstr(iter->value, ptr - (vlen - 1), vlen - 1);
-    }
-    else
-        iter->opt = DEL;
 
+    iter->opt = (vlen == 0) ? DEL : ADD;
     iter->start = ptr;
     iter->valid = 1;
 }
@@ -587,13 +569,11 @@ void sst_loader_iterator_next(SSTLoaderIterator* iter)
 
     if (vlen > 1)
     {
-        iter->opt = ADD;
         buffer_putnstr(iter->value, iter->start, vlen - 1);
         iter->start += vlen - 1;
     }
-    else
-        iter->opt = DEL;
 
+    iter->opt = (vlen == 0) ? DEL : ADD;
     iter->valid = 1;
 }
 

@@ -76,6 +76,7 @@ void sst_free(SST* self);
 
 void sst_merge(SST* self, SkipList* list);
 void sst_compact(SST* self);
+File* sst_filename_new(SST *self, uint32_t level, uint32_t filenum);
 int sst_file_new(SST* self, uint32_t level, File** file, SSTBuilder** builder, SSTMetadata** meta);
 void sst_file_add(SST* self, SSTMetadata* meta);
 void sst_file_delete(SST* self, uint32_t level, uint32_t count, SSTMetadata** files);

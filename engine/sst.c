@@ -63,7 +63,7 @@ static void _evaluate_compaction(SST* self)
         double score;
 
         if (level == 0)
-            score = self->num_files[0] / MAX_FILES_LEVEL0;
+            score = (double)self->num_files[0] / (double)MAX_FILES_LEVEL0;
         else
             score = (double)_size_for_level(self, level) / _max_size_for_level(level);
 
@@ -412,6 +412,7 @@ void sst_file_delete(SST* self, uint32_t level, uint32_t count, SSTMetadata** fi
     {
         SSTMetadata* meta = *(files + i);
         INFO("Deleting %s", meta->loader->file->filename);
+        unlink(meta->loader->file->filename);
         sst_metadata_free(meta);
     }
 }
@@ -428,16 +429,19 @@ void sst_file_add(SST* self, SSTMetadata* meta)
     _schedule_compaction(self);
 }
 
+File* sst_filename_new(SST* self, uint32_t level, uint32_t filenum)
+{
+    File* file_ = file_new();
+    snprintf(file_->filename, MAX_FILENAME, "%s/%d", self->basedir, level);
+    mkdirp(file_->filename);
+    snprintf(file_->filename, MAX_FILENAME, "%s/%d/%d.sst", self->basedir, level, filenum);
+    return file_;
+}
+
 int sst_file_new(SST* self, uint32_t level, File** file, SSTBuilder** builder, SSTMetadata** meta)
 {
     uint32_t filenum = self->last_id++;
-
-    File* file_ = file_new();
-
-    snprintf(file_->filename, MAX_FILENAME, "%s/%d", self->basedir, level);
-    mkdirp(file_->filename);
-
-    snprintf(file_->filename, MAX_FILENAME, "%s/%d/%d.sst", self->basedir, level, filenum);
+    File* file_ = sst_filename_new(self, level, filenum);
 
     if (!writable_file_new(file_))
     {
@@ -822,7 +826,6 @@ uint32_t sst_pick_level_for_compaction(SST* self, Variant* start, Variant* stop)
 
 void sst_compact(SST* self)
 {
-
     if (self->under_compaction)
         return;
 
@@ -839,6 +842,7 @@ void sst_compact(SST* self)
 
     self->under_compaction = 1;
     int needs_reset = 0, drop = 0;
+    uint64_t count = 0;
 
     OPT opt = ADD;
     Variant* key = NULL;
@@ -878,10 +882,15 @@ void sst_compact(SST* self)
             needs_reset = 1;
         }
 
+        count++;
         sst_builder_add(comp->builder, key, value, opt);
     }
 
-    if (drop)
+    assert(count > 0);
+
+    INFO("Merge successfully completed with %d keys merged", count);
+
+    if (drop && comp->builder->data_block->last_key)
     {
         // If we are it means that the block was ended with a dropped key
         // You have to check out this to see if it safe

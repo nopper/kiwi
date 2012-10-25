@@ -4,7 +4,7 @@
 
 static HT* hashtable_new(uint64_t capacity)
 {
-    HT* self = malloc(sizeof(HT));
+    HT* self = calloc(1, sizeof(HT));
 
     self->capacity = capacity;
     self->buckets = malloc(capacity * sizeof(HTNode*));
@@ -200,7 +200,7 @@ static void list_push(LRUList* list, LRUNode* node)
 
 LRU* lru_new(uint64_t size)
 {
-    LRU* self = malloc(sizeof(LRU));
+    LRU* self = calloc(1, sizeof(LRU));
 
     self->list = list_new();
     self->ht = hashtable_new(size);
@@ -254,6 +254,8 @@ void lru_set(LRU* self, const LRUKey* key, const LRUValue* value)
 
     node->value.start = value->start;
     node->value.stop = value->stop;
+
+    node->size = sizeof(LRUNode) + (value->stop - value->start);
 
     hashtable_set(self->ht, &node->key, node);
     list_push(self->list, node);
