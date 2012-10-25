@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include "compaction.h"
 #include "utils.h"
 
@@ -45,11 +46,16 @@ Compaction* compaction_new(SST *sst, int level)
     vector_add(current->files, meta);
 
     if (level == 0)
+    {
+//        smallest = current->smallest_key = meta->smallest_key;
+//        largest = current->largest_key = (self->sst->files[level][self->sst->num_files[0] - 1])->smallest_key;
+
         sst_get_overlapping_inputs(self->sst, level,
                                    meta->smallest_key, meta->largest_key,
                                    current->files,
                                    &current->smallest_key,
                                    &current->largest_key);
+    }
 
     sst_get_overlapping_inputs(self->sst, level + 1,
                                current->smallest_key,
@@ -169,9 +175,45 @@ Compaction* compaction_new(SST *sst, int level)
     file_range_debug(self->current_range, "final current");
     file_range_debug(self->parent_range, "final parent");
 
-    if (vector_count(self->current_range->files) +
-        vector_count(self->parent_range->files) == 1)
+    if (vector_count(self->current_range->files) == 1 &&
+        vector_count(self->parent_range->files) == 0 &&
+        file_range_size(self->grandparent_range) <= GRANDPARENT_OVERLAP)
     {
+#ifdef BACKGROUND_MERGE
+        pthread_mutex_lock(&self->sst->lock);
+#endif
+
+        SSTMetadata* old_meta = (SSTMetadata*)vector_get(self->current_range->files, 0);
+
+        uint32_t new_level = old_meta->level + 1, new_filenum = old_meta->filenum;
+
+        File* file = sst_filename_new(self->sst, new_level, new_filenum);
+
+        INFO("Moving %s to %s", old_meta->loader->file->filename, file->filename);
+
+        rename(old_meta->loader->file->filename, file->filename);
+
+        SSTMetadata* new_meta = sst_metadata_new(new_level, new_filenum);
+
+        Buffer* a = new_meta->smallest_key;
+        Buffer* b = new_meta->largest_key;
+
+        new_meta->smallest_key = old_meta->smallest_key;
+        new_meta->largest_key = old_meta->largest_key;
+        old_meta->smallest_key = a;
+        old_meta->largest_key = b;
+
+        sst_file_delete(self->sst, old_meta->level, 1, (SSTMetadata**)vector_data(self->current_range->files));
+
+        new_meta->loader = sst_loader_new(self->sst->cache, file, new_level, new_filenum);
+        new_meta->filesize = file_size(file);
+
+        sst_file_add(self->sst, new_meta);
+
+#ifdef BACKGROUND_MERGE
+        pthread_mutex_unlock(&self->sst->lock);
+#endif
+
         compaction_free(self);
         return NULL;
     }
