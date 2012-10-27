@@ -1,85 +1,101 @@
 package com.kv.kiwi.bluekiwi;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 
+import com.kv.kiwi.bluekiwi.serialize.MsgPack;
 import com.kv.kiwi.bluekiwi.utils.Utils;
 import com.tinkerpop.blueprints.Direction;
 import com.tinkerpop.blueprints.Edge;
 import com.tinkerpop.blueprints.Vertex;
 
 public class KiwiEdge extends KiwiElement implements Edge {
-	public String label = null;
-	public long inId = 0;
-	public long outId = 0;
+    public String label = null;
+    public KiwiVertex inV = null;
+    public KiwiVertex outV = null;
 
-	public KiwiEdge(KiwiGraph db, Long id) {
-		super(db, id);
-		try {
-			Utils.loadEdge(getRawValue(), this);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
-	
-	public KiwiEdge(KiwiGraph db, byte[] key, byte[] value) {
-		super(db, Long.parseLong(new String(key).substring(1)));
+    public KiwiEdge(KiwiGraph db, Long id) {
+        super(db, id);
+        load();
+    }
 
-		try {
-			Utils.loadEdge(value, this);
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	}
+    public static KiwiEdge createFrom(KiwiGraph db, byte[] currentKey,
+            byte[] currentValue) throws IOException {
+        long id = Long.parseLong(new String(currentKey).substring(2));
+        KiwiEdge e = new KiwiEdge(db, id);
 
-	public KiwiEdge(long inVertex, long outVertex, String label, KiwiGraph db) {
-		super(db, db.nextEdgeId());
+        List<Object> lst = (List<Object>) MsgPack.unpack(currentValue);
+        e.inV = new KiwiVertex(db, Utils.getLong(lst.get(0)));
+        e.outV = new KiwiVertex(db, Utils.getLong(lst.get(1)));
+        e.label = new String((byte[]) lst.get(2));
 
-		this.inId = inVertex;
-		this.outId = outVertex;
-		this.label = label;
-		
-		// Save into database
-		properties = new HashMap<String, String>();
-		
-		save();
-	}
-	
-	public void save() {
-		try {
-			byte[] key = "E".concat(String.valueOf(id)).getBytes();
-			byte[] value = Utils.serialize(this);
+        return e;
+    }
 
-			// Save into database
-			db.getDatabase().add(key, key.length, value, value.length);
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
+    public void reset(final Vertex out, final Vertex in, String lbl) {
+        label = lbl;
+        inV = (KiwiVertex) in;
+        outV = (KiwiVertex) out;
+    }
 
-	@Override
-	public String getLabel() {
-		return label;
-	}
+    private void load() {
+        try {
+            byte[] k = pathFor(null).getBytes();
+            ArrayList<Object> lst = (ArrayList<Object>) MsgPack.unpack(db
+                    .getDatabase().get(k, k.length));
+            inV = new KiwiVertex(db, Utils.getLong(lst.get(0)));
+            outV = new KiwiVertex(db, Utils.getLong(lst.get(1)));
+            label = new String((byte[]) lst.get(2));
+        } catch (Exception e) {
+            System.out.println("Unable to load edge " + getId());
+            e.printStackTrace();
+        }
+    }
 
-	@Override
-	public Vertex getVertex(Direction direction) throws IllegalArgumentException {
-		if (direction.equals(Direction.BOTH))
-			throw new IllegalArgumentException();
-		
-		if (direction.equals(Direction.OUT))
-		{
-			return new KiwiVertex(db, outId);
-		}
-		else
-		{
-			return new KiwiVertex(db, inId);
-		}
-	}
-	
-	public String toString() {
-		return new String("e[").concat(String.valueOf(id)).concat("][").concat(String.valueOf(inId)).concat("-").concat(label).concat("->").concat(String.valueOf(outId).concat("]"));
-	}
+    public void save() {
+        ArrayList<Object> lst = new ArrayList<Object>();
+        lst.add(inV.getId());
+        lst.add(outV.getId());
+        lst.add(label);
+        byte[] key = pathFor(null).getBytes();
+        byte[] value = MsgPack.pack(lst);
+        db.getDatabase().add(key, key.length, value, value.length);
+    }
+
+    @Override
+    public String getLabel() {
+        if (label == null)
+            load();
+
+        return label;
+    }
+
+    @Override
+    public Vertex getVertex(Direction direction)
+            throws IllegalArgumentException {
+
+        if (direction.equals(Direction.BOTH))
+            throw new IllegalArgumentException();
+
+        if (inV == null || outV == null)
+            load();
+
+        // TODO: if you need a new vertex just tell me
+        if (direction.equals(Direction.OUT)) {
+            return (Vertex) new KiwiVertex(db, (Long) outV.getId());
+        } else {
+            return (Vertex) new KiwiVertex(db, (Long) inV.getId());
+        }
+    }
+
+    public String toString() {
+        if (inV == null || outV == null)
+            load();
+
+        return new String("e[").concat(idString).concat("][")
+                .concat(String.valueOf(outV.getId())).concat("-").concat(label)
+                .concat("->").concat(String.valueOf(inV.getId()).concat("]"));
+    }
 
 }

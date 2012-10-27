@@ -1,86 +1,64 @@
 package com.kv.kiwi.bluekiwi.utils;
 
-import static org.msgpack.template.Templates.TLong;
-import static org.msgpack.template.Templates.TString;
-import static org.msgpack.template.Templates.tList;
-import static org.msgpack.template.Templates.tMap;
-
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-
-import org.msgpack.MessagePack;
-import org.msgpack.packer.Packer;
-import org.msgpack.template.Template;
-import org.msgpack.unpacker.Unpacker;
-
-import com.kv.kiwi.bluekiwi.KiwiEdge;
-import com.kv.kiwi.bluekiwi.KiwiVertex;
 
 public class Utils {
-	private static MessagePack msgpack = new MessagePack();
-	private static ByteArrayOutputStream out = new ByteArrayOutputStream();
-	private static Packer packer = msgpack.createPacker(out);
-	
-	private static Template<Map<String, String>> ssmapTmpl = tMap(TString, TString);
-	private static Template<List<Long>> llstTmpl = tList(TLong);
-	private static Template<Map<String, List<Long>>> slimapTmpl = tMap(TString, llstTmpl);
-	
-	private static void addMap(Map<String, List<Long>> h) throws IOException {
-		packer.writeMapBegin(h.size());
-		{
-			for (Map.Entry<String, List<Long>> e: h.entrySet())
-			{
-				packer.write(e.getKey());
-				packer.write(e.getValue());
-			}
-		}
-		packer.writeMapEnd();
-	}
-	
-	public static byte[] serialize(KiwiVertex v) throws IOException {
-		out.reset();
-		packer.write(v.properties);
-		
-		addMap(v.inE);
-		addMap(v.outE);
-		addMap(v.inV);
-		addMap(v.outV);
+    public static Long getLong(Object obj) throws IllegalArgumentException {
+        Long rv;
 
-		return out.toByteArray();
-	}
-	
-	public static byte[] serialize(KiwiEdge e) throws IOException {
-		out.reset();
-		
-		packer.write(e.inId);
-		packer.write(e.outId);
-		packer.write(e.label);
-		packer.write(e.properties);
+        if ((obj.getClass() == Integer.class) || (obj.getClass() == Long.class)
+                || (obj.getClass() == Double.class)) {
+            rv = Long.parseLong(obj.toString());
+        } else if ((obj.getClass() == int.class)
+                || (obj.getClass() == long.class)
+                || (obj.getClass() == double.class)) {
+            rv = (Long) obj;
+        } else if (obj.getClass() == String.class) {
+            rv = Long.parseLong(obj.toString());
+        } else {
+            throw new IllegalArgumentException("getLong: type "
+                    + obj.getClass() + " = \"" + obj.toString()
+                    + "\" unaccounted for");
+        }
 
-		return out.toByteArray();
-	}
-	
-	public static void loadVertex(byte[] bytes, KiwiVertex v) throws IOException {
-		ByteArrayInputStream in = new ByteArrayInputStream(bytes);
-		Unpacker u = msgpack.createUnpacker(in);
+        return rv;
+    }
 
-		v.properties = u.read(ssmapTmpl);
-		v.inE = u.read(slimapTmpl);
-		v.outE = u.read(slimapTmpl);
-		v.inV = u.read(slimapTmpl);
-		v.outV = u.read(slimapTmpl);
-	}
-	
-	public static void loadEdge(byte[] bytes, KiwiEdge e) throws IOException {
-		ByteArrayInputStream in = new ByteArrayInputStream(bytes);
-		Unpacker u = msgpack.createUnpacker(in);
-		
-		e.inId = u.read(TLong);
-		e.outId = u.read(TLong);
-		e.label = u.read(TString);
-		e.properties = u.read(ssmapTmpl);
-	}
+    public static List<Long> uncompressList(List<Long> lst) {
+        long add = 0;
+        for (int i = 0; i < lst.size(); i++) {
+            add += getLong(lst.get(i));
+            lst.set(i, add);
+        }
+        return lst;
+    }
+
+    public static List<Long> compressList(List<Long> value) {
+        if (value.size() == 1)
+            return value;
+
+        Collections.sort(value);
+
+        List<Long> comp = new ArrayList<Long>(value.size());
+        comp.add(value.get(0));
+
+        for (int i = 1; i < value.size(); i++) {
+            comp.add(value.get(i) - value.get(i - 1));
+        }
+
+        return comp;
+    }
+
+    public static String toHex(byte[] data) {
+        StringBuilder sb = new StringBuilder("0x");
+        for (byte b : data) {
+            if (b >= 0 && b < 0x10)
+                sb.append("0");
+            sb.append(Integer.toString(b & 0xff, 16));
+        }
+        return sb.toString();
+    }
+
 }

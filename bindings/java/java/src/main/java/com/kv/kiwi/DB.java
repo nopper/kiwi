@@ -16,9 +16,11 @@ public class DB {
 	public native void iterator_next(long iterator);
 	public native byte[] iterator_key(long iterator);
 	public native byte[] iterator_value(long iterator);
+	public native void iterator_free(long iterator);
 	
 
 	static {
+		System.loadLibrary("snappy");
 		System.loadLibrary("jniKiwiNative");
 	}
 
@@ -53,7 +55,7 @@ public class DB {
 
 	public boolean add(String key, String value) {
 		byte[] karr = key.getBytes(Charset.forName("UTF-8"));
-		byte[] varr = key.getBytes(Charset.forName("UTF-8"));
+		byte[] varr = value.getBytes(Charset.forName("UTF-8"));
 		return add(karr, karr.length, varr, varr.length) == 1;
 	}
 

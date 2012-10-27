@@ -43,4 +43,8 @@ public class DBIterator {
 		
 		return "";
 	}
+	
+	public void destroy() {
+		database.iterator_free(iterator);
+	}
 }

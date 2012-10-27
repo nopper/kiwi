@@ -54,13 +54,18 @@
 					</sources>
 
           <compilerStartOptions>
-             <compilerStartOption>-std=c99 -O3 -fomit-frame-pointer</compilerStartOption>
+             <compilerStartOption>-lsnappy -lpthread -lstdc++ -std=c99 -O3 -fomit-frame-pointer</compilerStartOption>
            </compilerStartOptions>
 
-					<linkerStartOptions>
-					 <linkerStartOption>-shared</linkerStartOption>
+           <linkerStartOptions>
+            <linkerStartOption>-shared</linkerStartOption>
           </linkerStartOptions>
-
+          <linkerEndOptions>
+            <linkerEndOption>-lsnappy</linkerEndOption>
+            <linkerEndOption>-lpthread</linkerEndOption>
+            <linkerEndOption>-lstdc++</linkerEndOption>
+            <linkerEndOption>-Wl,-soname,libsnappy.so -Wl,--no-undefined</linkerEndOption>
+          </linkerEndOptions>
 				</configuration>
         <executions>
            <execution>

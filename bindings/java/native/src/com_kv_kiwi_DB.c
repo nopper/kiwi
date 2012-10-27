@@ -80,7 +80,7 @@ JNIEXPORT jbyteArray JNICALL Java_com_kv_kiwi_DB_get(JNIEnv *jenv, jobject jclas
     Variant* value = buffer_new(255);
 
     ret = db_get(_db, &key, value);
-    
+
     if ((ret == 1) && (value->length > 0))
     {
         arr = (*jenv)->NewByteArray(jenv, value->length);
@@ -126,7 +126,7 @@ JNIEXPORT jint JNICALL Java_com_kv_kiwi_DB_close(JNIEnv* jenv, jobject jclass)
         db_close(_db);
         _db = NULL;
     }
-    
+
     return ret;
 }
 
@@ -135,10 +135,10 @@ JNIEXPORT jlong JNICALL Java_com_kv_kiwi_DB_iterator_1new(JNIEnv* jenv, jobject 
     (void)jenv;
     (void)jclass;
     DBIterator* iter = NULL;
-    
+
     if (_db)
         iter = db_iterator_new(_db);
-    
+
     return (jlong)iter;
 }
 
@@ -147,15 +147,15 @@ JNIEXPORT void JNICALL Java_com_kv_kiwi_DB_iterator_1seek(JNIEnv* jenv, jobject 
     (void)jenv;
     (void)jclass;
     DBIterator* iter = (DBIterator*)ptr;
-    
+
     if (iter)
     {
         Variant key;
         key.mem = (char*)(*jenv)->GetByteArrayElements(jenv, jkey, 0);
         key.length = (*jenv)->GetArrayLength(jenv, jkey);
-        
+
         db_iterator_seek(iter, &key);
-        
+
         (*jenv)->ReleaseByteArrayElements(jenv, jkey, (jbyte*)key.mem, 0);
     }
 }
@@ -178,11 +178,11 @@ JNIEXPORT jbyteArray JNICALL Java_com_kv_kiwi_DB_iterator_1key(JNIEnv* jenv, job
 {
     (void)jenv;
     (void)jclass;
-    
+
     Variant *v = db_iterator_key((DBIterator*)ptr);
     jbyteArray arr = (*jenv)->NewByteArray(jenv, v->length);
     (*jenv)->SetByteArrayRegion(jenv, arr, 0, v->length, v->mem);
-    
+
     return arr;
 }
 
@@ -190,10 +190,18 @@ JNIEXPORT jbyteArray JNICALL Java_com_kv_kiwi_DB_iterator_1value(JNIEnv* jenv, j
 {
     (void)jenv;
     (void)jclass;
-    
+
     Variant *v = db_iterator_value((DBIterator*)ptr);
     jbyteArray arr = (*jenv)->NewByteArray(jenv, v->length);
     (*jenv)->SetByteArrayRegion(jenv, arr, 0, v->length, v->mem);
-    
+
     return arr;
+}
+
+JNIEXPORT void JNICALL Java_com_kv_kiwi_DB_iterator_free(JNIEnv* jenv, jobject jclass, jlong ptr)
+{
+    (void)jenv;
+    (void)jclass;
+
+    db_iterator_free((DBIterator*)ptr);
 }
