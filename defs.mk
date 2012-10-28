@@ -8,7 +8,7 @@ WARN = -Wall
 
 FINAL_CFLAGS = $(STD) $(WARN) $(OPT) $(DEBUG) $(CFLAGS)
 FINAL_LDFLAGS = $(LDFLAGS) $(DEBUG)
-FINAL_LIBS = -lpthread -lsnappy
+FINAL_LIBS = -lpthread -lsnappy -Wl,-soname,libsnappy.so -Wl,--no-undefined
 
 FINAL_CC = $(QUIET_CC)$(CC) $(FINAL_CFLAGS)
 FINAL_LD = $(QUIET_LINK)$(CC) $(FINAL_LDFLAGS)

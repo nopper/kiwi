@@ -63,7 +63,16 @@ static void _evaluate_compaction(SST* self)
         double score;
 
         if (level == 0)
+        {
             score = (double)self->num_files[0] / (double)MAX_FILES_LEVEL0;
+            double size_score = (double)_size_for_level(self, 0) / _max_size_for_level(0);
+
+            if (size_score > score)
+            {
+                DEBUG("Using file size as score factor for level 0");
+                score = size_score;
+            }
+        }
         else
             score = (double)_size_for_level(self, level) / _max_size_for_level(level);
 
@@ -137,8 +146,14 @@ static void merge_thread(void* data)
 
         pthread_mutex_unlock(&sst->cv_lock);
 
-        _evaluate_compaction(sst);
-        sst_compact(sst);
+        int round = 1;
+
+        do {
+          _evaluate_compaction(sst);
+          sst_compact(sst);
+          round++;
+          _evaluate_compaction(sst);
+        } while (sst->comp_score >= 1.0 && round < 3);
     }
 }
 #endif
@@ -616,17 +631,23 @@ int sst_get(SST* self, Variant* key, Variant* value)
         }
     }
 
-#ifdef BACKGROUND_MERGE
-    pthread_mutex_unlock(&self->lock);
-#endif
 
     for (uint32_t i = 0; i < vector_count(self->targets); i++)
     {
 //        DEBUG("Looking for key %.*s inside %s", key->length, key->mem, ((SSTMetadata*)vector_get(self->targets, i))->loader->file->filename);
         OPT opt;
         if (sst_loader_get(((SSTMetadata*)vector_get(self->targets, i))->loader, key, value, &opt) == 1)
+        {
+#ifdef BACKGROUND_MERGE
+            pthread_mutex_unlock(&self->lock);
+#endif
             return opt == ADD;
+        }
     }
+
+#ifdef BACKGROUND_MERGE
+    pthread_mutex_unlock(&self->lock);
+#endif
 
     return 0;
 }
