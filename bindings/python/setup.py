@@ -13,7 +13,8 @@ os.environ["CFLAGS"] = "-Wno-strict-prototypes -std=c99 -O3 -fomit-frame-pointer
 
 ext_kiwi = Extension('_kiwidb',
 	include_dirs=[os.path.join(rootpath, 'engine')],
-	sources=sources + [os.path.join('extension', 'kiwi_module.c')])
+	sources=sources + [os.path.join('extension', 'kiwi_module.c')],
+    libraries=['snappy'])
 
 setup(name='KiwiGraph',
       version='0.1',

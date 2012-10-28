@@ -38,6 +38,9 @@ class DBIterator(object):
     def __iter__(self):
         return self
 
+    def __del__(self):
+        _kiwidb.db_iterator_free(self._iter)
+
     def next(self):
         if not _kiwidb.db_iterator_valid(self._iter):
             raise StopIteration

@@ -1,4 +1,5 @@
 from msgpack import dumps
+from bisect import insort
 from db import DB, DBIterator
 from edge import KiwiEdge
 from vertex import KiwiVertex
@@ -10,42 +11,46 @@ class KiwiGraph(object):
         self.vertices = 0
         self.edges = 0
 
-    def add_vertex(self, id):
+    def addVertex(self, id):
         self.vertices += 1
-        self.db.add('V/%s' % str(id), '')
+        vertex = KiwiVertex(self, id)
+        vertex.save()
+        return vertex
+
+    def getVertex(self, id):
         return KiwiVertex(self, id)
 
-    def get_vertex(self, id):
-        return KiwiVertex(self, id)
-
-    def add_edge(self, id, src, dst, label):
+    def addEdge(self, id, src, dst, label):
         self.edges += 1
-        self.db.add('E/%s' % str(id), dumps([src.get_id(), dst.get_id(), label]))
 
         # Here we assume that the two vertex are present.
-
         edge = KiwiEdge(self, id)
+
+        edge.reset(dst, src, label)
+        edge.save()
 
         # We could add this as a method to a vertex but
         # the vertex should not be able to modify this information
         # directly but only to consume it
 
-        def append_missing(vertex, var, label, id):
-            dct = vertex.get(var, {})
-            lst = dct.get(label, [])
-            lst.append(int(id))
-            dct[label] = lst
-            vertex.set(var, dct)
+        def append_missing(vertex, var, id):
+            lst = vertex.getProperty(var, [])
+            insort(lst, int(id))
+            vertex.setProperty(var, lst)
 
-        append_missing(src, 'outE', label, id)
-        append_missing(src, 'outV', label, dst.id)
-        append_missing(dst, 'inE', label, id)
-        append_missing(dst, 'inV', label, src.id)
+        append_missing(src, 'outE', id)
+        append_missing(dst, 'inE', id)
 
         return edge
 
-    def get_edge(self, id):
+    def getEdge(self, id):
         return KiwiEdge(self, id)
+
+    def getEdges(self, key=None, value=None):
+        pass
+
+    def getVertices(self, key=None, value=None):
+        pass
 
     def shutdown(self):
         self.db.close()
@@ -57,10 +62,24 @@ class KiwiGraph(object):
     def __repr__(self):
         return str(self)
 
+
+    # Gremlin interface
+    def v(self, id):
+        return self.getVertex(id)
+
+    def e(self, id):
+        return self.getEdge(id)
+
 if __name__ == "__main__":
     g = KiwiGraph('/tmp')
-    g.add_edge(3, g.add_vertex(1), g.add_vertex(2), 'knows')
-    g.shutdown()
 
-    g = KiwiGraph('/tmp')
-    print g.get_edge(3)
+    assert map(lambda v: v.getId(), g.v(1).outV()) == [2, 4, 3]
+    assert g.e(12).outV().getId() == 6
+    assert g.e(12).inV().getId() == 3
+    assert map(lambda v: v.getId(), g.e(12).bothV()) == [6, 3]
+    assert map(lambda v: v.getId(), g.v(3).inV(["created"])) == [1, 4, 6]
+    assert map(lambda e: e.outV().getId(), g.v(3).inE(["created"])) == [1, 4, 6]
+
+    # import readline
+    # from code import InteractiveConsole
+    # InteractiveConsole(locals()).interact("v.getEdges('OUT', ['knows'])")

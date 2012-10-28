@@ -1,70 +1,109 @@
-from element import KiwiElement
+import itertools
+import kiwi.edge
+import kiwi.element
 
-class KiwiVertex(KiwiElement):
+class KiwiVertex(kiwi.element.KiwiElement):
+    _directory = 'V/'
+
     def __init__(self, graph, id=None):
         super(KiwiVertex, self).__init__(graph, id)
 
-    @staticmethod
-    def load_outE(dct):
-        KiwiVertex._load_dict(dct)
+    def save(self):
+        self.db.add(self.path_for(None), '')
+
+    def getEdges(self, direction, labels=[]):
+        return self._getEntriesFor(direction, labels)
+
+    def getVertices(self, direction, labels=[]):
+        if direction == 'BOTH':
+            it_in = itertools.imap(lambda e: e.getVertex('OUT'), self._getEntriesFor('IN', labels))
+            it_out = itertools.imap(lambda e: e.getVertex('IN'), self._getEntriesFor('OUT', labels))
+            return itertools.chain(it_in, it_out)
+
+        opposite = 'IN'
+        if direction == 'IN':
+            opposite = 'OUT'
+
+        return itertools.imap(lambda e: e.getVertex(opposite), self._getEntriesFor(direction, labels))
+
+    def _getEntriesFor(self, direction, labels):
+        if direction == 'IN':
+            it = iter(self.getProperty('inE', []))
+        if direction == 'OUT':
+            it = iter(self.getProperty('outE', []))
+        if direction == 'BOTH':
+            it_in = iter(self.getProperty('inE', []))
+            it_out = iter(self.getProperty('outE', []))
+
+            it = itertools.chain(it_in, it_out)
+
+        try:
+            if not labels:
+                return itertools.imap(lambda id: kiwi.edge.KiwiEdge(self.graph, id), it)
+            
+            return itertools.ifilter(
+                lambda e: e.getLabel() in labels,
+                itertools.imap(lambda id: kiwi.edge.KiwiEdge(self.graph, id), it)
+            )
+        except:
+            raise Exception("Unknown direction")
 
     @staticmethod
-    def load_outV(dct):
-        KiwiVertex._load_dict(dct)
+    def load_outE(lst):
+        return KiwiVertex._load_list(lst)
 
     @staticmethod
-    def load_inE(dct):
-        KiwiVertex._load_dict(dct)
+    def load_inE(lst):
+        return KiwiVertex._load_list(lst)
 
     @staticmethod
-    def load_inV(dct):
-        KiwiVertex._load_dict(dct)
+    def save_outE(lst):
+        return KiwiVertex._save_list(lst)
 
     @staticmethod
-    def save_outE(dct):
-        KiwiVertex._save_dict(dct)
+    def save_inE(lst):
+        return KiwiVertex._save_list(lst)
 
     @staticmethod
-    def save_outV(dct):
-        KiwiVertex._save_dict(dct)
+    def _save_list(lst):
+        if not lst:
+            return lst
+
+        nlst = []
+        curr = 0
+
+        for elem in lst:
+            nlst.append(elem - curr)
+            curr = elem
+
+        return nlst
 
     @staticmethod
-    def save_inE(dct):
-        KiwiVertex._save_dict(dct)
+    def _load_list(lst):
+        if not lst:
+            return lst
 
-    @staticmethod
-    def save_inV(dct):
-        KiwiVertex._save_dict(dct)
+        add = 0
+        for pos, elem in enumerate(lst):
+            lst[pos] += add
+            add = lst[pos]
 
-    @staticmethod
-    def _save_dict(dct):
-        for key in dct:
-            lst = dct[key]
+        return lst
 
-            if not lst:
-                continue
+    def bothV(self, labels=[]):
+        return self.getVertices('BOTH', labels)
 
-            lst.sort()
-            current = lst[0]
+    def outV(self, labels=[]):
+        return self.getVertices('OUT', labels)
 
-            for pos, elem in enumerate(lst[1:]):
-                lst[pos + 1] = elem - current
-                current = elem
+    def inV(self, labels=[]):
+        return self.getVertices('IN', labels)
 
-            dct[key] = lst
+    def bothE(self, labels=[]):
+        return self.getEdges('BOTH', labels)
 
-    @staticmethod
-    def _load_dict(dct):
-        for key in dct:
-            lst = dct[key]
+    def outE(self, labels=[]):
+        return self.getEdges('OUT', labels)
 
-            if not lst:
-                continue
-
-            add = 0
-            for pos, elem in enumerate(lst):
-                curr = lst[pos]
-                lst[pos] += add
-                add = curr
-
-            dct[key] = lst
+    def inE(self, labels=[]):
+        return self.getEdges('IN', labels)
