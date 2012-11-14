@@ -50,7 +50,7 @@ class KiwiElement(object):
                     return value
                 except:
                     pass
-            
+
             return default
 
     def getPropertyKeys(self):

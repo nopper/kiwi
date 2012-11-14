@@ -16,15 +16,11 @@ class KiwiVertex(kiwi.element.KiwiElement):
 
     def getVertices(self, direction, labels=[]):
         if direction == 'BOTH':
-            it_in = itertools.imap(lambda e: e.getVertex('OUT'), self._getEntriesFor('IN', labels))
-            it_out = itertools.imap(lambda e: e.getVertex('IN'), self._getEntriesFor('OUT', labels))
+            it_in = itertools.imap(lambda e: e.getOther(self), self._getEntriesFor('IN', labels))
+            it_out = itertools.imap(lambda e: e.getOther(self), self._getEntriesFor('OUT', labels))
             return itertools.chain(it_in, it_out)
 
-        opposite = 'IN'
-        if direction == 'IN':
-            opposite = 'OUT'
-
-        return itertools.imap(lambda e: e.getVertex(opposite), self._getEntriesFor(direction, labels))
+        return itertools.imap(lambda e: e.getOther(self), self._getEntriesFor(direction, labels))
 
     def _getEntriesFor(self, direction, labels):
         if direction == 'IN':

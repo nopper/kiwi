@@ -4,6 +4,21 @@ from db import DB, DBIterator
 from edge import KiwiEdge
 from vertex import KiwiVertex
 
+#import leveldb
+#
+#class DB(object):
+#    def __init__(self, basedir):
+#        self.l = leveldb.LevelDB(basedir)
+#
+#    def add(self, k, v):
+#        self.l.Put(k, v)
+#
+#    def remove(self, k):
+#        self.l.Del(k, v)
+#
+#    def get(Self, k):
+#        return self.l.Get(k)
+
 class KiwiGraph(object):
     def __init__(self, basedir):
         self.db = DB(basedir)

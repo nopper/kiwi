@@ -4,7 +4,7 @@ import kiwi.element
 
 class KiwiEdge(kiwi.element.KiwiElement):
     _directory = 'E/'
-    
+
     def __init__(self, graph, id=None):
         super(KiwiEdge, self).__init__(graph, id)
 
@@ -35,6 +35,20 @@ class KiwiEdge(kiwi.element.KiwiElement):
             return self._inV
         if direction == 'BOTH':
             return (self._outV, self._inV)
+
+    def getOther(self, current):
+        if self._outV is None or self._inV is None:
+            self.load()
+
+        if current.getId() != self._outV.getId():
+            return self._outV
+        elif current.getId() != self._inV.getId():
+            return self._inV
+
+        return self._inV
+
+        raise Exception("Error in edge %d: inV and outV are the same %d %d" % \
+            (self.getId(), self._outV.getId(), self._inV.getId()))
 
     def getLabel(self):
         if not self._label:

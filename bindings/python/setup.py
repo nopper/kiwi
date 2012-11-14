@@ -20,8 +20,7 @@ setup(name='KiwiGraph',
       version='0.1',
       description='Graph database on top of Kiwi KV storage',
       author='Francesco Piccinno',
-      author_email='stac.box@gmail.com',
+      author_email='stack.box@gmail.com',
       packages=['kiwi'],
-      #py_modules=['indexer'],
       ext_modules=[ext_kiwi])
 
