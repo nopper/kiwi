@@ -1,6 +1,7 @@
 import sys
 import xml.sax
-from decorators import lru_cache
+from time import time
+from decorators import lfu_cache
 from kiwi.graph import KiwiGraph
 
 VERTEX_ID = "node"
@@ -37,7 +38,9 @@ class GraphMLHandler(xml.sax.ContentHandler):
             "float": float,
         }
 
-    @lru_cache(10000)
+        self.start = None
+
+    @lfu_cache(200000)
     def get_vertex(self, id):
         return self.graph.getVertex(id)
 
@@ -101,6 +104,9 @@ class GraphMLHandler(xml.sax.ContentHandler):
         elif self.in_edge and name == EDGE_ID:
             self.in_edge = False
 
+            if self.start is None:
+                self.start = time()
+
             src = self.get_vertex(self.edge_src)
             dst = self.get_vertex(self.edge_dst)
             edge = self.graph.addEdge(self.edge_id, src, dst, self.edge_label)
@@ -121,8 +127,13 @@ class GraphMLHandler(xml.sax.ContentHandler):
             self.attributes = []
 
         if self.locator.getLineNumber() % 1000 == 0:
-            sys.stderr.write("Line: %d Vertices: %d Edges: %d\r" % \
-                (self.locator.getLineNumber(), self.graph.vertices, self.graph.edges))
+            if self.start:
+                eps = self.graph.edges / (time() - self.start)
+            else:
+                eps = 0
+
+            sys.stderr.write("Line: %d Vertices: %d Edges: %d EPS: %.2f\r" % \
+                (self.locator.getLineNumber(), self.graph.vertices, self.graph.edges, eps))
             sys.stderr.flush()
 
     def characters(self, content):
@@ -139,5 +150,6 @@ def main(filename, graphpath):
 
 
 if __name__ == "__main__":
-    main("/home/nopper/graph.xml", "/tmp")
+    #main("/home/nopper/graph.xml", "/tmp")
     #main("/home/nopper/Desktop/Sources/indexer/indexer/bindings/java/gremlin/data/graph-example-1.xml", "/tmp")
+    main(sys.argv[1], sys.argv[2])
