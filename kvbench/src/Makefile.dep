@@ -1,0 +1,17 @@
+benchmark.o: benchmark.cc benchmark.h
+kc-benchmark.o: kc-benchmark.cc benchmark.h \
+  ../deps/kyotocabinet/kcpolydb.h ../deps/kyotocabinet/kccommon.h \
+  ../deps/kyotocabinet/kcutil.h ../deps/kyotocabinet/kcthread.h \
+  ../deps/kyotocabinet/kcfile.h ../deps/kyotocabinet/kccompress.h \
+  ../deps/kyotocabinet/kccompare.h ../deps/kyotocabinet/kcmap.h \
+  ../deps/kyotocabinet/kcregex.h ../deps/kyotocabinet/kcdb.h \
+  ../deps/kyotocabinet/kcplantdb.h ../deps/kyotocabinet/kcprotodb.h \
+  ../deps/kyotocabinet/kcstashdb.h ../deps/kyotocabinet/kccachedb.h \
+  ../deps/kyotocabinet/kchashdb.h ../deps/kyotocabinet/kcdirdb.h
+leveldb.o: leveldb.cc benchmark.h ../deps/leveldb/include/leveldb/db.h \
+  ../deps/leveldb/include/leveldb/iterator.h \
+  ../deps/leveldb/include/leveldb/slice.h \
+  ../deps/leveldb/include/leveldb/status.h \
+  ../deps/leveldb/include/leveldb/options.h \
+  ../deps/leveldb/include/leveldb/cache.h \
+  ../deps/leveldb/include/leveldb/filter_policy.h
