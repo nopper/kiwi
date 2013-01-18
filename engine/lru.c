@@ -41,7 +41,7 @@ static void hashtable_free(HT* ht)
 
 static inline uint64_t _find_slot(HT* ht, const LRUKey* key)
 {
-    return (((key->filenum << 5) + 5381) ^ key->offset) % ht->capacity;
+    return ((key->filenum ^ key->offset) + 3) % ht->capacity;
 }
 
 static LRUNode* hashtable_get(HT* ht, const LRUKey* key)
