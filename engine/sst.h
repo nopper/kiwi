@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include "indexer.h"
 #include "skiplist.h"
+#include "memtable.h"
 #include "sst_loader.h"
 #include "sst_builder.h"
 #include "variant.h"
@@ -27,6 +28,8 @@ typedef struct _sst_metadata {
     uint32_t level;
     uint64_t filesize;
 
+    int allowed_seeks;
+
     Variant* smallest_key;
     Variant* largest_key;
     SSTLoader* loader;
@@ -35,8 +38,9 @@ typedef struct _sst_metadata {
 SSTMetadata* sst_metadata_new(uint32_t level, uint32_t filenum);
 void sst_metadata_free(SSTMetadata* self);
 
-#define MERGE_STATUS_EXIT  1
-#define MERGE_STATUS_INPUT 2
+#define MERGE_STATUS_EXIT    1
+#define MERGE_STATUS_INPUT   2
+#define MERGE_STATUS_COMPACT 4
 
 typedef struct _sst {
     char basedir[MAX_FILENAME];
@@ -54,7 +58,8 @@ typedef struct _sst {
     LRU* cache;
 
 #ifdef BACKGROUND_MERGE
-    SkipList* immutable;
+    MemTable* immutable;
+    SkipList* immutable_list;
 
     pthread_mutex_t lock;
 
@@ -74,7 +79,7 @@ typedef struct _sst {
 SST* sst_new(const char* basedir);
 void sst_free(SST* self);
 
-void sst_merge(SST* self, SkipList* list);
+void sst_merge(SST* self, MemTable* mem);
 void sst_compact(SST* self);
 File* sst_filename_new(SST *self, uint32_t level, uint32_t filenum);
 int sst_file_new(SST* self, uint32_t level, File** file, SSTBuilder** builder, SSTMetadata** meta);

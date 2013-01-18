@@ -97,8 +97,8 @@ Compaction* compaction_new(SST *sst, int level)
         uint64_t parents_size = file_range_size(parents);
         uint64_t missing_size = file_range_size(missing);
 
-        if (vector_count(current->files) < vector_count(missing->files) &&
-            missing_size + parents_size < EXPANSION_LIMIT)
+        if ((vector_count(current->files) < vector_count(missing->files)) &&
+            (missing_size + parents_size < EXPANSION_LIMIT))
         {
             if (sst_get_overlapping_inputs(self->sst, level + 1,
                                            missing->smallest_key,
@@ -121,9 +121,13 @@ Compaction* compaction_new(SST *sst, int level)
                 missing = NULL;
             }
         }
+    }
 
-        if (missing)
-            file_range_free(missing);
+    if (missing)
+    {
+        file_range_free(self->current_range);
+        self->current_range = missing;
+        missing = NULL;
     }
 
     if (level + 2 < MAX_LEVELS)

@@ -101,8 +101,12 @@ static int _read_block(SSTLoader* self, uint64_t offset, uint64_t size, char **b
 
 static int _load_index(SSTLoader* self, uint64_t offset, uint64_t size)
 {
+    assert(size > 0);
+
     const char* start = self->file->base + offset;
     const char* stop = start + size - sizeof(uint32_t) * 2;
+
+    assert(stop > start);
 
     uint32_t block_type = get_int32(stop);
     uint32_t block_crc32 = get_int32(stop + sizeof(uint32_t));
@@ -158,6 +162,7 @@ static int _read_footer(SSTLoader* self)
 
     index_off = get_int64(start);
     index_sz = get_int64(start + sizeof(uint64_t));
+
     meta_off = get_int64(start + sizeof(uint64_t) * 2);
     meta_sz = get_int64(start + sizeof(uint64_t) * 3);
 
