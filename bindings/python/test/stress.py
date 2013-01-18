@@ -1,13 +1,24 @@
+import sys
 import kiwi.db
 import random
-count = 0
-d = kiwi.db.DB('/tmp')
-for i in xrange(1000000):
-    d.add(str(i), "A" * 80)
-a = range(1000000)
-random.shuffle(a)
-for i in a:
-    assert d.get(str(i)) == "A" * 80
-    count += 1
-print "Count", count
-d.close()
+
+def get_keys(amount):
+    keys = range(amount)
+    random.shuffle(keys)
+    return map(lambda x: "key-%d" % x, keys)
+
+def main(action, count):
+    db = kiwi.db.DB('/tmp')
+    keys = get_keys(count)
+
+    if action == 'read':
+        for key in keys:
+            db.get(key)
+    if action == 'write':
+        for key in keys:
+            db.add(key, "A" * 80)
+
+    db.close()
+
+if __name__ == "__main__":
+    main(sys.argv[1], int(sys.argv[2]))

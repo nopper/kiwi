@@ -8,8 +8,8 @@ currentpath = os.path.dirname(__file__)
 rootpath = os.path.join(currentpath, '..', '..')
 sources = glob.glob(os.path.join(rootpath, 'engine/*.c'))
 
-#os.environ["CFLAGS"] = "-Wno-strict-prototypes -std=c99 -ggdb -O0"
-os.environ["CFLAGS"] = "-Wno-strict-prototypes -std=c99 -O3 -fomit-frame-pointer"
+os.environ["CFLAGS"] = "-Wno-strict-prototypes -std=c99 -ggdb -O0"
+#os.environ["CFLAGS"] = "-Wno-strict-prototypes -std=c99 -O3 -fomit-frame-pointer"
 
 ext_kiwi = Extension('_kiwidb',
 	include_dirs=[os.path.join(rootpath, 'engine')],
