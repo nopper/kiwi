@@ -20,6 +20,7 @@ LIBINDEXER_OBJ = \
 	file.o \
 	heap.o \
 	vector.o \
+	log.o \
 	lru.o
 
 LIBINDEXER = libindexer.so

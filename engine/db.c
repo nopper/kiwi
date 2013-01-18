@@ -3,6 +3,7 @@
 #include "db.h"
 #include "indexer.h"
 #include "utils.h"
+#include "log.h"
 
 DB* db_open(const char* basedir)
 {
@@ -12,9 +13,10 @@ DB* db_open(const char* basedir)
         PANIC("NULL allocation");
 
     strncpy(self->basedir, basedir, MAX_FILENAME);
-
     self->sst = sst_new(basedir);
-    self->memtable = memtable_new();
+
+    Log* log = log_new(self->sst->basedir);
+    self->memtable = memtable_new(log);
 
     return self;
 }
@@ -25,12 +27,13 @@ void db_close(DB *self)
 
     if (self->memtable->list->count > 0)
     {
-        sst_merge(self->sst, self->memtable->list);
+        sst_merge(self->sst, self->memtable);
         self->memtable->list = NULL;
     }
 
-    memtable_free(self->memtable);
     sst_free(self->sst);
+    log_remove(self->memtable->log, self->memtable->lsn);
+    memtable_free(self->memtable);
     free(self);
 }
 
@@ -40,7 +43,7 @@ int db_add(DB* self, Variant* key, Variant* value)
     {
         INFO("Starting compaction of the memtable after %d insertions and %d deletions",
              self->memtable->add_count, self->memtable->del_count);
-        sst_merge(self->sst, self->memtable->list);
+        sst_merge(self->sst, self->memtable);
         memtable_reset(self->memtable);
     }
 

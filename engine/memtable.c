@@ -1,10 +1,11 @@
 #include <string.h>
 #include <assert.h>
 #include "memtable.h"
+#include "db.h"
 #include "utils.h"
 #include "indexer.h"
 
-MemTable* memtable_new(void)
+MemTable* memtable_new(Log* log)
 {
     MemTable* self = malloc(sizeof(MemTable));
 
@@ -12,8 +13,14 @@ MemTable* memtable_new(void)
         PANIC("NULL allocation");
 
     self->list = skiplist_new(SKIPLIST_SIZE);
+    self->needs_compaction = 0;
     self->add_count = 0;
     self->del_count = 0;
+
+    self->log = log;
+    self->lsn = 0;
+
+    log_recovery(log, self->list);
 
     return self;
 }
@@ -21,6 +28,9 @@ MemTable* memtable_new(void)
 void memtable_reset(MemTable* self)
 {
     self->list = skiplist_new(SKIPLIST_SIZE);
+    log_next(self->log, ++self->lsn);
+
+    self->needs_compaction = 0;
     self->add_count = 0;
     self->del_count = 0;
 }
@@ -37,6 +47,7 @@ static int _memtable_edit(MemTable* self, const Variant* key, const Variant* val
     // Here we need to insert the new node that has as a skipnode's key
     // an encoded string that encompasses both the key and value supplied
     // by the user.
+    //
 
     size_t klen = varint_length(key->length);          // key length
     size_t vlen = (opt == DEL) ? 1 : varint_length(value->length + 1);    // value length - 0 is reserved for tombstone
@@ -45,7 +56,7 @@ static int _memtable_edit(MemTable* self, const Variant* key, const Variant* val
     if (opt == DEL)
         assert(value->length == 0);
 
-    char *mem = malloc(sizeof(char) * encoded_len);
+    char *mem = malloc(encoded_len);
     char *node_key = mem;
 
     encode_varint32(node_key, key->length);
@@ -61,6 +72,10 @@ static int _memtable_edit(MemTable* self, const Variant* key, const Variant* val
 
     node_key += vlen;
     memcpy(node_key, value->mem, value->length);
+
+#ifdef APPENDLOG
+    self->needs_compaction = log_append(self->log, mem, encoded_len);
+#endif
 
     if (skiplist_insert(self->list, key->mem, key->length, opt, mem) == STATUS_OK_DEALLOC)
         free(mem);
@@ -110,7 +125,8 @@ int memtable_get(SkipList* list, const Variant *key, Variant* value)
 
 int memtable_needs_compaction(MemTable *self)
 {
-    return (self->list->count >= SKIPLIST_SIZE ||
+    return (self->needs_compaction ||
+            self->list->count >= SKIPLIST_SIZE ||
             self->list->allocated >= MAX_SKIPLIST_ALLOCATION);
 }
 
