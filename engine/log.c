@@ -23,7 +23,7 @@ Log* log_new(const char *basedir)
     memset(self->basedir, 0, MAX_FILENAME);
     memcpy(self->basedir, basedir, MAX_FILENAME);
 
-    self->log_fd = -1;
+    self->file = file_new();
     self->file_length = 0;
 
     return self;
@@ -139,26 +139,24 @@ void log_next(Log* self, int lsn)
 {
     char log_name[MAX_FILENAME];
 
+    // Close previosly opened file if present
+    file_close(self->file);
+
     memset(log_name, 0, MAX_FILENAME);
     snprintf(log_name, MAX_FILENAME, "%s/%d.log", self->basedir, lsn);
-    memcpy(self->name, log_name, MAX_FILENAME);
 
-    if (self->log_fd > 0)
-        close(self->log_fd);
+    memcpy(self->file->filename, log_name, MAX_FILENAME);
+    writable_file_new(self->file);
 
     self->file_length = 0;
-    self->log_fd = open(self->name, O_WRONLY | O_APPEND | O_TRUNC | O_CREAT, 0644);
 
-    if (self->log_fd == -1)
-        PANIC("Unable to create log file %s", self->name);
-
-    DEBUG("Log file %s created", self->name);
+    DEBUG("Log file %s created", self->file->filename);
 }
 
 int log_append(Log* self, char *value, size_t length)
 {
-    self->file_length += write(self->log_fd, (void *)value, length);
-    //fsync(self->log_fd);
-    //
+    // Here we should instruct the File class to do some fsync after
+    // a certain amount of insertions.
+    self->file_length += file_append_raw(self->file, value, length);
     return (self->file_length >= LOG_MAXSIZE);
 }

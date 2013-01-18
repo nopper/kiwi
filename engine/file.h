@@ -24,6 +24,7 @@ int writable_file_new(File* self);
 int mmapped_file_new(File* self);
 
 int file_append(File* self, Buffer* data);
+int file_append_raw(File* self, const char* data, size_t length);
 int file_close(File* self);
 
 uint64_t file_size(File* self);

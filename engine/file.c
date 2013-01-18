@@ -127,10 +127,9 @@ int _map_new_region(File* self)
     return 1;
 }
 
-int file_append(File* self, Buffer* data)
+int file_append_raw(File* self, const char* src, size_t length)
 {
-    const char* src = data->mem;
-    size_t left = data->length;
+    size_t left = length;
 
     while (left > 0)
     {
@@ -150,6 +149,11 @@ int file_append(File* self, Buffer* data)
     }
 
     return 1;
+}
+
+int file_append(File* self, Buffer* data)
+{
+    return file_append_raw(self, data->mem, data->length);
 }
 
 int file_close(File* self)

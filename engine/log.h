@@ -1,11 +1,12 @@
 #ifndef __LOG_H__
 #define __LOG_H__
 
+#include "file.h"
 #include "config.h"
 #include "skiplist.h"
 
 typedef struct _log {
-    int log_fd;
+    File* file;
     size_t file_length;
     char name[MAX_FILENAME];
     char basedir[MAX_FILENAME];
