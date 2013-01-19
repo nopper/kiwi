@@ -151,10 +151,20 @@ static void merge_thread(void* data)
             pthread_exit(0);
         }
 
+        int compacted = 0;
+
         if ((sst->merge_state & MERGE_STATUS_COMPACT) == MERGE_STATUS_COMPACT)
         {
             // We have already evaluated the score. Just execute the job
             DEBUG("The merge thread received a COMPACTION job");
+            sst_compact(sst);
+            compacted = 1;
+        }
+
+        if (!compacted && sst->num_files[0] >= 8)
+        {
+            DEBUG("Compactiong due to many files in level 0");
+            _evaluate_compaction(sst);
             sst_compact(sst);
         }
 

@@ -18,7 +18,7 @@ if [ ! -e leveldb-1.9.0.tar.gz ]; then
     wget http://leveldb.googlecode.com/files/leveldb-1.9.0.tar.gz
 fi
 
-if [! -d deps/leveldb ]; then
+if [ ! -d deps/leveldb ]; then
     tar xfz leveldb-1.9.0.tar.gz
     mv leveldb-1.9.0 deps/leveldb
 fi

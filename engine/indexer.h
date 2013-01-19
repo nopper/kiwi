@@ -13,21 +13,26 @@
 #define TYPE_NO_COMPRESSION     0
 #define TYPE_SNAPPY_COMPRESSION 1
 
+#define PRINT
+
+#ifdef PRINT
 #define INFO(...)\
     do { log_msg(LEVEL_INFO, __FILE__ ":" LINE_STRING " " __VA_ARGS__); } while (0)
-//#define INFO(...) do {} while(0)
 
 #define DEBUG(...)\
     do { log_msg(LEVEL_DEBUG, __FILE__ ":" LINE_STRING " " __VA_ARGS__); } while (0)
-//#define DEBUG(...) do {} while(0)
 
 #define WARN(...)\
     do { log_msg(LEVEL_WARNING, __FILE__ ":" LINE_STRING " " __VA_ARGS__); } while (0)
-//#define WARN(...) do {} while(0)
 
 #define ERROR(...)\
     do { log_msg(LEVEL_ERROR, __FILE__ ":" LINE_STRING " " __VA_ARGS__); } while (0)
-//#define ERROR(...) do {} while(0)
+#else
+#define INFO(...) do {} while(0)
+#define DEBUG(...) do {} while(0)
+#define WARN(...) do {} while(0)
+#define ERROR(...) do {} while(0)
+#endif
 
 #define PANIC(...)\
     do { log_msg(LEVEL_ERROR, __FILE__ ":" LINE_STRING " " __VA_ARGS__); abort(); exit(1); } while (0)

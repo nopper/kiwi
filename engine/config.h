@@ -12,11 +12,14 @@
 #define LEVEL_ERROR   3
 
 #define RESTART_INTERVAL 16
-//#define SKIPLIST_SIZE 1024 * 1024 * 100// Actually this is not the memory occupation
-//#define MAX_SKIPLIST_ALLOCATION 1024 * 1024 * 70
 
+#ifdef BIG
+#define SKIPLIST_SIZE 10000000
+#define MAX_SKIPLIST_ALLOCATION (40 * 1048576)
+#else
 #define SKIPLIST_SIZE 1000000
 #define MAX_SKIPLIST_ALLOCATION (4 * 1048576)
+#endif
 
 #define POOL_SIZE 1024 * 8
 #define BLOCK_SIZE 4096
@@ -40,10 +43,15 @@
 #define BITS_PER_KEY 10
 #define NUM_PROBES 7
 
-#define LRU_CACHE_SIZE (8 * 1048576)
+#ifdef BIG
+#define LRU_CACHE_SIZE (50 * 1048576)
+#define LOG_MAXSIZE (8 * 1048576)
+#else
+#define LRU_CACHE_SIZE (4 * 1048576)
+#define LOG_MAXSIZE (4 * 1048576)
+#endif
+
 #define BACKGROUND_MERGE
 #define WITH_SNAPPY
-#define APPENDLOG
-#define LOG_MAXSIZE (4 * 1048576)
 
 #endif

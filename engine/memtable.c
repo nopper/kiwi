@@ -73,9 +73,7 @@ static int _memtable_edit(MemTable* self, const Variant* key, const Variant* val
     node_key += vlen;
     memcpy(node_key, value->mem, value->length);
 
-#ifdef APPENDLOG
     self->needs_compaction = log_append(self->log, mem, encoded_len);
-#endif
 
     if (skiplist_insert(self->list, key->mem, key->length, opt, mem) == STATUS_OK_DEALLOC)
         free(mem);

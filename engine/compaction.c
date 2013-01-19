@@ -147,7 +147,7 @@ Compaction* compaction_new(SST *sst, int level)
         {
             SSTMetadata* b = *((SSTMetadata **)vector_data(self->grandparent_range->files) + i);
 
-            for (uint32_t j = 0; i < vector_count(self->current_range->files) && !curr_found; j++)
+            for (uint32_t j = 0; j < vector_count(self->current_range->files) && !curr_found; j++)
             {
                 SSTMetadata* a = *((SSTMetadata **)vector_data(self->current_range->files) + j);
 
@@ -183,9 +183,9 @@ Compaction* compaction_new(SST *sst, int level)
         vector_count(self->parent_range->files) == 0 &&
         file_range_size(self->grandparent_range) <= GRANDPARENT_OVERLAP)
     {
-#ifdef BACKGROUND_MERGE
-        pthread_mutex_lock(&self->sst->lock);
-#endif
+//#ifdef BACKGROUND_MERGE
+//        pthread_mutex_lock(&self->sst->lock);
+//#endif
 
         SSTMetadata* old_meta = (SSTMetadata*)vector_get(self->current_range->files, 0);
 
@@ -214,9 +214,9 @@ Compaction* compaction_new(SST *sst, int level)
 
         sst_file_add(self->sst, new_meta);
 
-#ifdef BACKGROUND_MERGE
-        pthread_mutex_unlock(&self->sst->lock);
-#endif
+//#ifdef BACKGROUND_MERGE
+//        pthread_mutex_unlock(&self->sst->lock);
+//#endif
 
         compaction_free(self);
         return NULL;
