@@ -120,7 +120,7 @@ public:
 
   
   Benchmark(Engine *e): getratio(1), putratio(1), delratio(1), threads(1),
-                        keysize(12), datasize(8), keyrange(1), 
+                        keysize(16), datasize(100), keyrange(1), 
                         rate(0),loop(false),
                         interval(10), duration(5),
                         engine(e), path("testdb"), 

@@ -1,8 +1,8 @@
 #include "benchmark.h"
 
 extern "C" {
-#include "kiwi/db.h"
-#include "kiwi/variant.h"
+#include "../../engine/db.h"
+#include "../../engine/variant.h"
 }
 
 class Kiwi : public benchmark::Engine {

@@ -7,6 +7,7 @@
 #include <math.h>
 #include <assert.h>
 #include "benchmark.h"
+#include "utils.h"
 
 namespace benchmark {
 
@@ -42,6 +43,16 @@ static void randomizeKey(char *key, int range) {
   snprintf(key, MAX_KEY_LEN+1, "%012zu", r);
 }
 
+void random_key(char *key, int length, int full) {
+	int i;
+	char salt[37]= "abcdefghijklmnopqrstuvwxyz0123456789";
+
+	for (i = 0; i < length; i++)
+		key[i] = salt[rand() % 36];
+
+    for (; i < full; i++)
+        key[i] = key[i - length];
+}
 
 void* benchmark(void *arg) {
   Worker *w = (Worker*)arg;
@@ -55,8 +66,11 @@ void* benchmark(void *arg) {
   std::string value;
   value.reserve(b->datasize);
   size_t lastvalue = 0;
-  
-  
+
+  char vbuf[b->datasize];
+  random_key(vbuf, b->datasize * 0.5, b->datasize);
+  value.append(vbuf, b->datasize);
+
   while (!Benchmark::shuttingdown) {
     if (Benchmark::sequential)
         snprintf(buf, MAX_KEY_LEN+1, "%012zu", lastvalue++);
