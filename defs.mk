@@ -1,7 +1,7 @@
 CC = gcc
 AR = ar
-STD = -std=c99 -Wall -pedantic -DHASH_FUNCTION=HASH_SFH
-OPTIMIZATION ?= -O2
+STD = -std=c99 -Wall -pedantic -DHASH_FUNCTION=HASH_FNV
+OPTIMIZATION ?= -O3 -fomit-frame-pointer -funroll-loops
 OPT = $(OPTIMIZATION)
 DEBUG = -g -ggdb
 DEBUG = -DNDEBUG

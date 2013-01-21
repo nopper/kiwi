@@ -46,7 +46,7 @@ static inline void _lru_cleanup(LRU* self)
         free(entry);
 
 
-        if (self->curr_size < (self->max_size * 0.80) && self->num_entries < self->max_entries)
+        //if (self->curr_size < (self->max_size * 0.95) && self->num_entries < self->max_entries)
             break;
     }
 
