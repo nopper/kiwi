@@ -1,6 +1,6 @@
 CC = gcc
 AR = ar
-STD = -std=c99 -Wall -pedantic
+STD = -std=c99 -Wall -pedantic -DHASH_FUNCTION=HASH_SFH
 OPTIMIZATION ?= -O2
 OPT = $(OPTIMIZATION)
 DEBUG = -g -ggdb

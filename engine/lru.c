@@ -33,7 +33,7 @@ static inline void _lru_cleanup(LRU* self)
 {
     CacheEntry *entry, *iterator;
 
-    INFO("Curr: %d Max: %d entries Curr: %d Max: %d size", self->num_entries, self->max_entries, self->curr_size, self->max_size);
+    //INFO("Curr: %d Max: %d entries Curr: %d Max: %d size", self->num_self->cache, self->max_self->cache, self->curr_size, self->max_size);
 
     HASH_ITER(hh, self->cache, entry, iterator)
     {
@@ -50,14 +50,14 @@ static inline void _lru_cleanup(LRU* self)
             break;
     }
 
-    INFO("Curr: %d Max: %d entries Curr: %d Max: %d size", self->num_entries, self->max_entries, self->curr_size, self->max_size);
+    //INFO("Curr: %d Max: %d entries Curr: %d Max: %d size", self->num_self->cache, self->max_self->cache, self->curr_size, self->max_size);
 }
 
 void lru_set(LRU* self, CacheEntry *entry)
 {
-    //DEBUG("Saving file: %d off: %d len: %d", entry->filenum, entry->offset, entry->stop - entry->start);
+    //INFO("Saving file: %"PRIu64" off: %"PRIu64" len: %u", entry->key.filenum, entry->key.offset, entry->stop - entry->start);
 
-    HASH_ADD(hh, self->cache, filenum, KEYLEN, entry);
+    HASH_ADD(hh, self->cache, key, KEYLEN, entry);
 
     self->curr_size += entry->stop - entry->start;
     self->num_entries ++;
@@ -72,18 +72,18 @@ CacheEntry* lru_get(LRU* self, const LookupKey* key)
 {
     CacheEntry* entry = NULL;
 
-    //DEBUG("Requesting file: %d off: %d", key->filenum, key->offset);
+    //INFO("Requesting file: %"PRIu64" off: %"PRIu64, key->filenum, key->offset);
 
-    HASH_FIND(hh, self->cache, key, KEYLEN, entry);
+    HASH_FIND(hh, self->cache, key, sizeof(LookupKey), entry);
 
     if (entry)
     {
         //DEBUG("Got file: %d off: %d len: %d", entry->filenum, entry->offset, entry->stop - entry->start);
         // Remove it (so the subsequent add will throw it on the front of the list)
         HASH_DELETE(hh, self->cache, entry);
-        HASH_ADD(hh, self->cache, filenum, KEYLEN, entry);
+        HASH_ADD(hh, self->cache, key, KEYLEN, entry);
 
-        //DEBUG("Got file: %d off: %d len: %d", entry->filenum, entry->offset, entry->stop - entry->start);
+        //INFO("Got file: %"PRIu64" off: %"PRIu64" len: %u", entry->key.filenum, entry->key.offset, entry->stop - entry->start);
     }
 
     return entry;

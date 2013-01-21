@@ -1,0 +1,111 @@
+[twitter@OnAir src]$ sh bench.sh 
+======================================================
+Number of keys: 1000000
+Length of data: 100
+Cache size:     104857600
+======================================================
+KC PUT
+78237qps get:0/0/0/0(us) put:127/149/170/320(us) del:0/0/0/0(us)
+64542qps get:0/0/0/0(us) put:131/158/179/565(us) del:0/0/0/0(us)
+57266qps get:0/0/0/0(us) put:137/163/182/63044(us) del:0/0/0/0(us)
+54845qps get:0/0/0/0(us) put:141/172/189/743(us) del:0/0/0/0(us)
+KC GET
+142870qps get:42/47/52/89(us) put:0/0/0/0(us) del:0/0/0/0(us)
+140720qps get:42/47/52/344(us) put:0/0/0/0(us) del:0/0/0/0(us)
+139019qps get:43/48/53/95(us) put:0/0/0/0(us) del:0/0/0/0(us)
+137173qps get:43/48/53/77(us) put:0/0/0/0(us) del:0/0/0/0(us)
+LEVELDB PUT
+120891qps get:0/0/0/0(us) put:6/1110/1126/31242(us) del:0/0/0/0(us)
+115357qps get:0/0/0/0(us) put:6/1111/1126/29609(us) del:0/0/0/0(us)
+101381qps get:0/0/0/0(us) put:7/1111/1127/41833(us) del:0/0/0/0(us)
+114113qps get:0/0/0/0(us) put:6/1109/1127/76451(us) del:0/0/0/0(us)
+LEVELDB GET
+296766qps get:6/8/14/52(us) put:0/0/0/0(us) del:0/0/0/0(us)
+297349qps get:6/8/14/792(us) put:0/0/0/0(us) del:0/0/0/0(us)
+297689qps get:6/8/14/770(us) put:0/0/0/0(us) del:0/0/0/0(us)
+297845qps get:6/8/14/815(us) put:0/0/0/0(us) del:0/0/0/0(us)
+KIWI PUT
+127211qps get:0/0/0/0(us) put:4/44/704/1079642(us) del:0/0/0/0(us)
+133031qps get:0/0/0/0(us) put:4/46/727/1122775(us) del:0/0/0/0(us)
+120969qps get:0/0/0/0(us) put:4/46/731/1148202(us) del:0/0/0/0(us)
+124171qps get:0/0/0/0(us) put:4/46/703/1156694(us) del:0/0/0/0(us)
+KIWI GET
+283354qps get:4/8/12/41(us) put:0/0/0/0(us) del:0/0/0/0(us)
+283496qps get:4/8/12/967(us) put:0/0/0/0(us) del:0/0/0/0(us)
+283778qps get:4/7/12/922(us) put:0/0/0/0(us) del:0/0/0/0(us)
+283504qps get:4/8/12/904(us) put:0/0/0/0(us) del:0/0/0/0(us)
+[twitter@OnAir src]$ vim bench.sh 
+[twitter@OnAir src]$ sh bench.sh 
+======================================================
+Number of keys: 1000000
+Length of data: 100
+Cache size:     8388608
+======================================================
+KC PUT
+10524qps get:0/0/0/0(us) put:175/185/195/378(us) del:0/0/0/0(us)
+9441qps get:0/0/0/0(us) put:175/183/192/325(us) del:0/0/0/0(us)
+8823qps get:0/0/0/0(us) put:179/192/1499/15616(us) del:0/0/0/0(us)
+8666qps get:0/0/0/0(us) put:176/185/196/432(us) del:0/0/0/0(us)
+KC GET
+31794qps get:47/51/57/298(us) put:0/0/0/0(us) del:0/0/0/0(us)
+31977qps get:46/51/55/75(us) put:0/0/0/0(us) del:0/0/0/0(us)
+31959qps get:46/50/58/90(us) put:0/0/0/0(us) del:0/0/0/0(us)
+31896qps get:46/50/56/88(us) put:0/0/0/0(us) del:0/0/0/0(us)
+LEVELDB PUT
+127863qps get:0/0/0/0(us) put:6/1108/1127/31256(us) del:0/0/0/0(us)
+115297qps get:0/0/0/0(us) put:6/1104/1121/23009(us) del:0/0/0/0(us)
+101314qps get:0/0/0/0(us) put:7/1099/1125/40216(us) del:0/0/0/0(us)
+115570qps get:0/0/0/0(us) put:6/1108/1118/19597(us) del:0/0/0/0(us)
+LEVELDB GET
+205474qps get:6/10/20/48(us) put:0/0/0/0(us) del:0/0/0/0(us)
+205661qps get:6/10/20/819(us) put:0/0/0/0(us) del:0/0/0/0(us)
+205303qps get:6/10/20/754(us) put:0/0/0/0(us) del:0/0/0/0(us)
+205648qps get:6/10/20/718(us) put:0/0/0/0(us) del:0/0/0/0(us)
+KIWI PUT
+124572qps get:0/0/0/0(us) put:4/46/978/1080152(us) del:0/0/0/0(us)
+132005qps get:0/0/0/0(us) put:4/46/990/1130497(us) del:0/0/0/0(us)
+124635qps get:0/0/0/0(us) put:4/46/983/1134314(us) del:0/0/0/0(us)
+121005qps get:0/0/0/0(us) put:4/46/952/1146696(us) del:0/0/0/0(us)
+KIWI GET
+279814qps get:4/8/12/33(us) put:0/0/0/0(us) del:0/0/0/0(us)
+279348qps get:4/8/12/947(us) put:0/0/0/0(us) del:0/0/0/0(us)
+278981qps get:4/8/12/964(us) put:0/0/0/0(us) del:0/0/0/0(us)
+278597qps get:4/8/12/942(us) put:0/0/0/0(us) del:0/0/0/0(us)
+[twitter@OnAir src]$ vim bench.sh 
+[twitter@OnAir src]$ sh bench.sh 
+======================================================
+Number of keys: 1000000
+Length of data: 100
+Cache size:     4194304
+======================================================
+KC PUT
+9087qps get:0/0/0/0(us) put:174/183/191/365(us) del:0/0/0/0(us)
+8405qps get:0/0/0/0(us) put:177/185/192/248(us) del:0/0/0/0(us)
+8055qps get:0/0/0/0(us) put:177/187/344/16810(us) del:0/0/0/0(us)
+7936qps get:0/0/0/0(us) put:175/182/191/276(us) del:0/0/0/0(us)
+KC GET
+32436qps get:43/47/54/80(us) put:0/0/0/0(us) del:0/0/0/0(us)
+32633qps get:42/47/52/71(us) put:0/0/0/0(us) del:0/0/0/0(us)
+33123qps get:42/46/53/75(us) put:0/0/0/0(us) del:0/0/0/0(us)
+33262qps get:42/46/52/66(us) put:0/0/0/0(us) del:0/0/0/0(us)
+LEVELDB PUT
+118382qps get:0/0/0/0(us) put:6/1096/1118/38781(us) del:0/0/0/0(us)
+113210qps get:0/0/0/0(us) put:6/1110/1128/32823(us) del:0/0/0/0(us)
+114567qps get:0/0/0/0(us) put:6/1111/1127/33934(us) del:0/0/0/0(us)
+101318qps get:0/0/0/0(us) put:7/1110/1127/23711(us) del:0/0/0/0(us)
+LEVELDB GET
+219886qps get:5/10/15/246(us) put:0/0/0/0(us) del:0/0/0/0(us)
+219749qps get:5/10/15/238(us) put:0/0/0/0(us) del:0/0/0/0(us)
+219846qps get:5/10/15/882(us) put:0/0/0/0(us) del:0/0/0/0(us)
+220157qps get:5/10/15/872(us) put:0/0/0/0(us) del:0/0/0/0(us)
+KIWI PUT
+158209qps get:0/0/0/0(us) put:4/45/762/916891(us) del:0/0/0/0(us)
+121907qps get:0/0/0/0(us) put:4/46/722/1079927(us) del:0/0/0/0(us)
+136972qps get:0/0/0/0(us) put:4/46/719/1122964(us) del:0/0/0/0(us)
+122360qps get:0/0/0/0(us) put:4/46/738/1165008(us) del:0/0/0/0(us)
+118976qps get:0/0/0/0(us) put:4/46/729/1174627(us) del:0/0/0/0(us)
+KIWI GET
+286155qps get:4/7/12/35(us) put:0/0/0/0(us) del:0/0/0/0(us)
+275417qps get:4/8/12/923(us) put:0/0/0/0(us) del:0/0/0/0(us)
+274240qps get:4/8/12/778(us) put:0/0/0/0(us) del:0/0/0/0(us)
+274138qps get:4/8/12/768(us) put:0/0/0/0(us) del:0/0/0/0(us)

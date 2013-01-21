@@ -7,7 +7,7 @@
 #include "config.h"
 #include "uthash.h"
 
-#define KEYLEN (sizeof(uint64_t) * 2)
+#define KEYLEN (sizeof(LookupKey))
 
 typedef struct _lookup_key {
     uint64_t filenum; // Key
@@ -15,18 +15,16 @@ typedef struct _lookup_key {
 } LookupKey;
 
 typedef struct _cache_entry {
-    UT_hash_handle hh;
-
-    int filenum;     // Key
-    uint64_t offset; // Key
+    LookupKey key;
 
     void *start; // Value
     void *stop;  // Value
+
+    UT_hash_handle hh;
 } CacheEntry;
 
 typedef struct _lru {
     CacheEntry* cache;
-
     uint32_t max_size;
     uint32_t curr_size;
 

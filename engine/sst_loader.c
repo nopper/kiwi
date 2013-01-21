@@ -85,8 +85,8 @@ static int _read_block(SSTLoader* self, uint64_t offset, uint64_t size, char **b
         {
             lru_value = malloc(sizeof(CacheEntry));
 
-            lru_value->filenum = self->filenum;
-            lru_value->offset = offset;
+            lru_value->key.filenum = self->filenum;
+            lru_value->key.offset = offset;
             lru_value->start = output;
             lru_value->stop = output + output_length;
 
@@ -392,7 +392,7 @@ int sst_loader_get(SSTLoader* self, Variant* key, Variant* value, OPT* opt)
 
         *opt = (vlen == 0) ? DEL : ADD;
 
-        _release_block(self, entry->offset, entry->size);
+        //_release_block(self, entry->offset, entry->size);
         return 1;
     }
 
@@ -426,11 +426,11 @@ int sst_loader_get(SSTLoader* self, Variant* key, Variant* value, OPT* opt)
 
         *opt = (vlen == 0) ? DEL : ADD;
 
-        _release_block(self, entry->offset, entry->size);
+        //_release_block(self, entry->offset, entry->size);
         return 1;
     }
 
-    _release_block(self, entry->offset, entry->size);
+    //_release_block(self, entry->offset, entry->size);
     return 0;
 }
 
