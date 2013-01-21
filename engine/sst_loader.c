@@ -15,26 +15,33 @@
 
 static void _release_block(SSTLoader* self, uint64_t offset, uint64_t size)
 {
-    LRUKey lru_key;
+    LookupKey lru_key;
     lru_key.filenum = self->filenum;
     lru_key.offset = offset;
     lru_release(self->cache, &lru_key);
 }
 
-static int _read_block(SSTLoader* self, uint64_t offset, uint64_t size, char **begin, char **end)
+static int _read_block(SSTLoader* self, uint64_t offset, uint64_t size, char **begin, char **end, int must_cache)
 {
-    LRUKey lru_key;
-    LRUValue lru_value;
+    // If must_cache is set to 0 we are iterating over the keyspace. Skip caching but remember
+    // to also free allocated strings
+    LookupKey lru_key;
+    CacheEntry *lru_value = NULL;
 
     lru_key.filenum = self->filenum;
     lru_key.offset = offset;
 
-    if (lru_get(self->cache, &lru_key, &lru_value) == 1)
+    if (must_cache)
     {
-        *begin = lru_value.start;
-        *end = lru_value.stop;
+        lru_value = lru_get(self->cache, &lru_key);
 
-        return 1;
+        if (lru_value)
+        {
+            *begin = lru_value->start;
+            *end = lru_value->stop;
+
+            return 1;
+        }
     }
 
     // get from lru(self->filenum, offset, &start, &stop)
@@ -42,6 +49,8 @@ static int _read_block(SSTLoader* self, uint64_t offset, uint64_t size, char **b
     char* stop = start + size - sizeof(uint32_t) * 2;
 
     uint32_t block_type = get_int32(stop);
+
+#ifdef PARANOID_CHECK
     uint32_t block_crc32 = get_int32(stop + sizeof(uint32_t));
     uint32_t actual_crc32 = crc32_extend(0, start, stop - start);
 
@@ -51,6 +60,7 @@ static int _read_block(SSTLoader* self, uint64_t offset, uint64_t size, char **b
               actual_crc32, block_crc32);
         return 0;
     }
+#endif
 
 #ifdef WITH_SNAPPY
     if (block_type == TYPE_SNAPPY_COMPRESSION)
@@ -71,18 +81,26 @@ static int _read_block(SSTLoader* self, uint64_t offset, uint64_t size, char **b
         *begin = output;
         *end = output + output_length;
 
-        lru_value.start = output;
-        lru_value.stop = output + output_length;
+        if (must_cache)
+        {
+            lru_value = malloc(sizeof(CacheEntry));
 
-        lru_set(self->cache, &lru_key, &lru_value);
+            lru_value->filenum = self->filenum;
+            lru_value->offset = offset;
+            lru_value->start = output;
+            lru_value->stop = output + output_length;
+
+            lru_set(self->cache, lru_value);
+        }
 
         return 1;
     }
 #endif
-
     *begin = start;
     *end = stop;
 
+#if 0
+    // Apparently there's some sort of race condition here
     start = malloc(*end - *begin);
     memcpy(start, *begin, *end - *begin);
     stop = start + (*end - *begin);
@@ -90,11 +108,13 @@ static int _read_block(SSTLoader* self, uint64_t offset, uint64_t size, char **b
     *begin = start;
     *end = stop;
 
+    lru_value->filenum = self->filenum;
+    lru_value->offset = offset;
+    lru_value->start = start;
+    lru_value->stop = stop;
 
-    lru_value.start = start;
-    lru_value.stop = stop;
-
-    lru_set(self->cache, &lru_key, &lru_value);
+    lru_set(self->cache, lru_value);
+#endif
 
     return 1;
 }
@@ -332,7 +352,7 @@ int sst_loader_get(SSTLoader* self, Variant* key, Variant* value, OPT* opt)
 
     int ret = -2;
     char *start = NULL, *stop = NULL, *iter;
-    _read_block(self, entry->offset, entry->size, &start, &stop);
+    _read_block(self, entry->offset, entry->size, &start, &stop, 1);
 
     uint32_t num_restarts = get_int32(stop - sizeof(uint32_t));
     stop -= sizeof(uint32_t) * (num_restarts + 1);
@@ -416,8 +436,10 @@ int sst_loader_get(SSTLoader* self, Variant* key, Variant* value, OPT* opt)
 
 static uint32_t _sst_loader_read_block(SSTLoaderIterator* iter, IndexEntry* entry)
 {
-    _read_block(iter->loader, entry->offset, entry->size, &iter->start, &iter->stop);
+    _read_block(iter->loader, entry->offset, entry->size, &iter->start, &iter->stop, 0);
 
+    // NOTE: The current keep track of the beginning of the block and it is used
+    // to release the string allocated in _read_block when must_cache is set to 0
     iter->current = iter->start;
 
     // We need to skip restart pointer since we are just iterating over the structure
@@ -436,7 +458,8 @@ static void _sst_loader_iterator_next_block(SSTLoaderIterator* iter)
     if (iter->prev_block >= 0)
     {
         IndexEntry* entry = kv_A(iter->loader->index, iter->prev_block);
-        _release_block(iter->loader, entry->offset, entry->size);
+        free(iter->current);
+        //_release_block(iter->loader, entry->offset, entry->size, 0);
     }
 
     if (iter->block >= kv_size(iter->loader->index))
@@ -569,13 +592,15 @@ void sst_loader_iterator_free(SSTLoaderIterator *iter)
     if (iter->prev_block >= 0)
     {
         IndexEntry* entry = kv_A(iter->loader->index, iter->prev_block);
-        _release_block(iter->loader, entry->offset, entry->size);
+        free(iter->current);
+        //_release_block(iter->loader, entry->offset, entry->size, 0);
     }
 
     if (iter->block >= 0 && iter->block < kv_size(iter->loader->index))
     {
         IndexEntry* entry = kv_A(iter->loader->index, iter->block);
-        _release_block(iter->loader, entry->offset, entry->size);
+        //free(entry->current);
+        //_release_block(iter->loader, entry->offset, entry->size, 0);
     }
 
     buffer_free(iter->key);

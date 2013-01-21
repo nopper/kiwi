@@ -5,7 +5,7 @@
 #include "utils.h"
 #include "log.h"
 
-DB* db_open(const char* basedir)
+DB* db_open_ex(const char* basedir, uint64_t cache_size)
 {
     DB* self = calloc(1, sizeof(DB));
 
@@ -13,12 +13,17 @@ DB* db_open(const char* basedir)
         PANIC("NULL allocation");
 
     strncpy(self->basedir, basedir, MAX_FILENAME);
-    self->sst = sst_new(basedir);
+    self->sst = sst_new(basedir, cache_size);
 
     Log* log = log_new(self->sst->basedir);
     self->memtable = memtable_new(log);
 
     return self;
+}
+
+DB* db_open(const char* basedir)
+{
+    return db_open_ex(basedir, LRU_CACHE_SIZE);
 }
 
 void db_close(DB *self)

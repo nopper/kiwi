@@ -226,7 +226,7 @@ Compaction* compaction_new(SST *sst, int level)
          vector_count(self->current_range->files),
          vector_count(self->parent_range->files),
          file_range_size(self->current_range),
-         file_range_size(self->parent_range), level);
+         file_range_size(self->parent_range), level + 1);
 
     return self;
 }
@@ -254,7 +254,7 @@ static void _compaction_close_pending(Compaction* self)
 int compaction_new_output_file(Compaction* self)
 {
     _compaction_close_pending(self);
-    return sst_file_new(self->sst, self->level, &self->file, &self->builder, &self->meta);
+    return sst_file_new(self->sst, self->level + 1, &self->file, &self->builder, &self->meta);
 }
 
 int compaction_exceeds_overlap(Compaction* self, Variant* key)

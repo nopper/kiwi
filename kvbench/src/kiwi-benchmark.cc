@@ -26,7 +26,7 @@ public:
 
     buffer_free(v);
   }
-  
+
   void del(const benchmark::Slice &key) {
     Variant k;
     k.mem = (char *)key.data();
@@ -36,7 +36,7 @@ public:
   }
 
   void init(const char* path, size_t cachesize) {
-    db = db_open(path);
+    db = db_open_ex(path, cachesize);
   }
 
   ~Kiwi() { 

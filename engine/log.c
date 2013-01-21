@@ -158,6 +158,7 @@ int log_append(Log* self, char *value, size_t length)
 {
     // Here we should instruct the File class to do some fsync after
     // a certain amount of insertions.
-    self->file_length += file_append_raw(self->file, value, length);
+    file_append_raw(self->file, value, length);
+    self->file_length += length;
     return (self->file_length >= LOG_MAXSIZE);
 }

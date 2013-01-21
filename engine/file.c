@@ -99,7 +99,7 @@ int _unmap_region(File* self)
         self->base = self->limit = self->current = NULL;
 
         // Double allocation size until 2^20 bytes (1MB) limit
-        if (self->map_size < (1 << 20))
+        if (self->map_size < (2 << 20))
             self->map_size <<= 1;
     }
 
@@ -171,6 +171,8 @@ int file_close(File* self)
         if (ftruncate(self->fd, self->offset - unused) < 0)
             ret = 0;
     }
+
+    fsync(self->fd);
 
     if (self->fd != -1 && close(self->fd) < 0)
         ret = 0;

@@ -13,7 +13,7 @@
 #define TYPE_NO_COMPRESSION     0
 #define TYPE_SNAPPY_COMPRESSION 1
 
-#define PRINT
+//#define PRINT
 
 #ifdef PRINT
 #define INFO(...)\

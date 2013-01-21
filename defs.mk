@@ -1,10 +1,10 @@
 CC = gcc
 AR = ar
 STD = -std=c99 -Wall -pedantic
-OPTIMIZATION ?= -O3 -fomit-frame-pointer -funroll-loops
+OPTIMIZATION ?= -O2
 OPT = $(OPTIMIZATION)
 DEBUG = -g -ggdb
-DEBUG = 
+DEBUG = -DNDEBUG
 WARN = -Wall
 
 FINAL_CFLAGS = $(STD) $(WARN) $(OPT) $(DEBUG) $(CFLAGS)

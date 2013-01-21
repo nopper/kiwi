@@ -5,6 +5,8 @@
 #include <string.h>
 #include <inttypes.h>
 #include <assert.h>
+#include <time.h>
+#include <errno.h>
 #include "sst.h"
 #include "memtable.h"
 #include "sst_builder.h"
@@ -15,11 +17,64 @@
 #include "vector.h"
 #include "compaction.h"
 
+static uint64_t _prettify(uint64_t size, char const** metric)
+{
+    static const char* metrics[] = {
+        "bytes",
+        "KiB",
+        "MiB",
+        "GiB",
+        "TiB",
+        NULL
+    };
+
+
+    unsigned offset = 0;
+
+    while (size > 1024) {
+        size /= 1024;
+        offset++;
+    }
+
+    INFO("BYTES %d OFFSET %d", size, offset);
+
+    *metric = metrics[offset];
+
+    return size;
+}
+
+static uint64_t _size_for_level(SST* self, uint32_t level)
+{
+    uint64_t size = 0;
+    for (uint32_t i = 0; i < self->num_files[level]; i++)
+        size += (self->files[level][i])->filesize;
+    //INFO("Total bytes in level %d = %" PRIu64, level, size);
+    return size;
+}
+
 static void _print_summary(SST* self)
 {
+    static const char* metrics[] = {
+        "bytes",
+        "KiB  ",
+        "MiB  ",
+        "GiB  ",
+        "TiB  ",
+        NULL
+    };
+
     for (uint32_t level = 0; level < MAX_LEVELS; level++)
     {
-        INFO("--- Level %d ---", level);
+        uint64_t file_size = _size_for_level(self, level);
+        uint64_t offset = 0;
+
+        while (file_size > 1024.0)
+        {
+            file_size /= 1024;
+            offset++;
+        }
+
+        INFO("--- Level %d [%3d files, %3u %s]---", level, self->num_files[level], file_size, metrics[offset]);
 
         for (uint32_t i = 0; i < self->num_files[level]; i++)
         {
@@ -31,15 +86,6 @@ static void _print_summary(SST* self)
                  (*(self->files[level] + i))->largest_key->mem);
         }
     }
-}
-
-static uint64_t _size_for_level(SST* self, uint32_t level)
-{
-    uint64_t size = 0;
-    for (uint32_t i = 0; i < self->num_files[level]; i++)
-        size += (self->files[level][i])->filesize;
-    //INFO("Total bytes in level %d = %" PRIu64, level, size);
-    return size;
 }
 
 static double _max_size_for_level(uint32_t level)
@@ -65,13 +111,13 @@ static void _evaluate_compaction(SST* self)
         if (level == 0)
         {
             score = (double)self->num_files[0] / (double)MAX_FILES_LEVEL0;
-            double size_score = (double)_size_for_level(self, 0) / _max_size_for_level(0);
+            //double size_score = (double)_size_for_level(self, 0) / _max_size_for_level(0);
 
-            if (size_score > score)
-            {
+            //if (size_score > score)
+            //{
                 //DEBUG("Using file size as score factor for level 0");
-                score = size_score;
-            }
+            //    score = size_score;
+            //}
         }
         else
             score = (double)_size_for_level(self, level) / _max_size_for_level(level);
@@ -112,13 +158,33 @@ void sst_merge_real(SST* self, SkipList* list);
 static void merge_thread(void* data)
 {
     SST* sst = (SST*)data;
+    int rt;
 
     while (1)
     {
         pthread_mutex_lock(&sst->cv_lock);
 
         while (sst->merge_state == 0)
+#ifndef WAITED
             pthread_cond_wait(&sst->cv, &sst->cv_lock);
+#else
+        {
+            struct timespec ts;
+            ts.tv_nsec = 500 * 1000;
+            rt = pthread_cond_timedwait(&sst->cv, &sst->cv_lock, &ts);
+
+            if (rt == ETIMEDOUT)
+            {
+                if (sst->num_files[0] >= MAX_FILES_LEVEL0)
+                {
+                    DEBUG("Compactiong due to many files in level 0");
+                    _evaluate_compaction(sst);
+                    sst_compact(sst);
+                }
+                goto exit;
+            }
+        }
+#endif
 
         if ((sst->merge_state & MERGE_STATUS_INPUT) == MERGE_STATUS_INPUT &&
             sst->immutable)
@@ -161,7 +227,7 @@ static void merge_thread(void* data)
             compacted = 1;
         }
 
-        if (!compacted && sst->num_files[0] >= 8)
+        if (!compacted && sst->num_files[0] >= MAX_FILES_LEVEL0 * 2)
         {
             DEBUG("Compactiong due to many files in level 0");
             _evaluate_compaction(sst);
@@ -171,6 +237,7 @@ static void merge_thread(void* data)
         sst->immutable = NULL;
         sst->immutable_list = NULL;
         sst->merge_state = 0;
+exit:
 
         pthread_mutex_unlock(&sst->cv_lock);
     }
@@ -335,7 +402,7 @@ static int _read_manifest(SST* self)
     return 1;
 }
 
-SST* sst_new(const char* basedir)
+SST* sst_new(const char* basedir, uint64_t cache_size)
 {
     SST* self = (SST*)malloc(sizeof(SST));
 
@@ -348,7 +415,7 @@ SST* sst_new(const char* basedir)
     self->under_compaction = 0;
     self->targets = vector_new(); // Used to speed up the get
 
-    self->cache = lru_new(LRU_CACHE_SIZE);
+    self->cache = lru_new(cache_size);
 
     self->comp_level = -1;
     self->comp_score = -1;

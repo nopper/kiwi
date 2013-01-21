@@ -1,67 +1,44 @@
 #ifndef __LRU_H__
 #define __LRU_H__
 
+#include <pthread.h>
 #include <sys/types.h>
 #include <inttypes.h>
 #include "config.h"
+#include "uthash.h"
 
-#ifdef BACKGROUND_MERGE
-#include <pthread.h>
-#endif
+#define KEYLEN (sizeof(uint64_t) * 2)
 
-typedef struct _lru_key {
-    int filenum;
-    uint64_t offset;
-} LRUKey;
+typedef struct _lookup_key {
+    uint64_t filenum; // Key
+    uint64_t offset;  // Key
+} LookupKey;
 
-typedef struct _lru_value {
-    void *start;
-    void *stop;
-} LRUValue;
+typedef struct _cache_entry {
+    UT_hash_handle hh;
 
-typedef struct _lru_node {
-    int refcount;
-    size_t size;
-    LRUKey key;
-    LRUValue value;
-    struct _lru_node* next;
-    struct _lru_node* prev;
-} LRUNode;
+    int filenum;     // Key
+    uint64_t offset; // Key
 
-typedef struct _lru_list {
-    uint64_t count;
-    uint64_t used;
-    LRUNode* head;
-    LRUNode* tail;
-} LRUList;
-
-struct _ht;
+    void *start; // Value
+    void *stop;  // Value
+} CacheEntry;
 
 typedef struct _lru {
-#ifdef BACKGROUND_MERGE
-    pthread_mutex_t lock;
-#endif
-    uint64_t allow;
-    LRUList* list;
-    struct _ht* ht;
+    CacheEntry* cache;
+
+    uint32_t max_size;
+    uint32_t curr_size;
+
+    uint32_t max_entries;
+    uint32_t num_entries;
 } LRU;
-
-typedef struct _ht_node {
-    LRUNode* data;
-    struct _ht_node* next;
-} HTNode;
-
-typedef struct _ht {
-    size_t size;
-    uint64_t capacity;
-    HTNode** buckets;
-} HT;
 
 LRU* lru_new(uint64_t size);
 void lru_free(LRU* self);
 
-void lru_set(LRU* self, const LRUKey* key, const LRUValue *value);
-int lru_get(LRU* self, const LRUKey* key, LRUValue* value);
-void lru_release(LRU* self, const LRUKey* key);
+void lru_set(LRU* self, CacheEntry* entry);
+CacheEntry* lru_get(LRU* self, const LookupKey* key);
+void lru_release(LRU* self, const LookupKey* key);
 
 #endif

@@ -6,9 +6,16 @@
 *.class
 *.jar
 app/indexer
+bench/kiwi-bench
+kvbench/deps
+kvbench/src/kv-benchmark
+kvbench/src/kiwi-benchmark
+kvbench/src/leveldb-benchmark
+kvbench/src/testdb
 bindings/java/bluekiwi/target
 bindings/java/java/target
 bindings/java/native/linux/target
+bindings/python/build/
 .classpath
 .project
 .settings

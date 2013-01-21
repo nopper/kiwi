@@ -76,7 +76,7 @@ typedef struct _sst {
     SSTMetadata** files[MAX_LEVELS];
 } SST;
 
-SST* sst_new(const char* basedir);
+SST* sst_new(const char* basedir, uint64_t cache_size);
 void sst_free(SST* self);
 
 void sst_merge(SST* self, MemTable* mem);

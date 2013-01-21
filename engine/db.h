@@ -14,6 +14,8 @@ typedef struct _db {
 } DB;
 
 DB* db_open(const char *basedir);
+DB* db_open_ex(const char *basedir, uint64_t cache_size);
+
 void db_close(DB* self);
 int db_add(DB* self, Variant* key, Variant* value);
 int db_get(DB* self, Variant* key, Variant* value);
