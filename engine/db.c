@@ -33,11 +33,13 @@ void db_close(DB *self)
     if (self->memtable->list->count > 0)
     {
         sst_merge(self->sst, self->memtable);
+        skiplist_release(self->memtable->list);
         self->memtable->list = NULL;
     }
 
     sst_free(self->sst);
     log_remove(self->memtable->log, self->memtable->lsn);
+    log_free(self->memtable->log);
     memtable_free(self->memtable);
     free(self);
 }
@@ -77,10 +79,32 @@ DBIterator* db_iterator_new(DB* db)
     self->sl_key = buffer_new(1);
     self->sl_value = buffer_new(1);
 
-    self->prev = self->node = db->memtable->list->hdr;
+    self->list = db->memtable->list;
+    self->prev = self->node = self->list->hdr;
+
+    skiplist_acquire(self->list);
+
+    // Let's acquire the immutable list if any
+    pthread_mutex_lock(&self->db->sst->immutable_lock);
+
+    if (self->db->sst->immutable_list)
+    {
+        skiplist_acquire(self->db->sst->immutable_list);
+
+        self->imm_list = self->db->sst->immutable_list;
+        self->imm_prev = self->imm_node = self->imm_list->hdr;
+        self->has_imm = 1;
+    }
+
+    pthread_mutex_unlock(&self->db->sst->immutable_lock);
+
+    // TODO: At this point we should get the current sequence of the active
+    // SkipList in order to avoid polluting the iteration
 
     self->use_memtable = 1;
     self->use_files = 1;
+
+    self->advance = ADV_MEM | ADV_MEM;
 
     return self;
 }
@@ -92,8 +116,21 @@ void db_iterator_free(DBIterator* self)
 
     heap_free(self->minheap);
     vector_free(self->iterators);
+
     buffer_free(self->sl_key);
     buffer_free(self->sl_value);
+
+    if (self->has_imm)
+    {
+        buffer_free(self->isl_key);
+        buffer_free(self->isl_value);
+    }
+
+    skiplist_release(self->list);
+
+    if (self->imm_list)
+        skiplist_release(self->imm_list);
+
     free(self);
 }
 
@@ -268,25 +305,82 @@ start:
         self->valid = 0;
 }
 
-static void _db_iterator_next_mem(DBIterator* self)
+static void _db_iterator_advance_mem(DBIterator* self)
 {
     while (1)
     {
         self->prev = self->node;
-        if (self->node == self->db->memtable->list->hdr)
+        self->list_end = self->node == self->list->hdr;
+
+        if (self->list_end)
             return;
 
         OPT opt;
         memtable_extract_node(self->node, self->sl_key, self->sl_value, &opt);
         self->node = self->node->forward[0];
 
-        if (opt == DEL)
+        if (opt == ADD)
+            break;
+
+        buffer_clear(self->sl_key);
+        buffer_clear(self->sl_value);
+    }
+}
+
+static void _db_iterator_advance_imm(DBIterator* self)
+{
+    while (self->has_imm)
+    {
+        self->imm_prev = self->imm_node;
+        self->imm_list_end = self->imm_node == self->imm_list->hdr;
+
+        if (self->imm_list_end)
+            return;
+
+        OPT opt;
+        memtable_extract_node(self->imm_node, self->isl_key, self->isl_value, &opt);
+        self->imm_node = self->imm_node->forward[0];
+
+        if (opt == ADD)
+            break;
+
+        buffer_clear(self->isl_key);
+        buffer_clear(self->isl_value);
+    }
+}
+
+static void _db_iterator_next_mem(DBIterator* self)
+{
+    if (self->advance & ADV_MEM) _db_iterator_advance_mem(self);
+    if (self->advance & ADV_IMM) _db_iterator_advance_imm(self);
+
+    // Here we need to compare the two keys
+    if (self->sl_key && !self->isl_key)
+    {
+        self->advance = ADV_MEM;
+        self->key = self->sl_key;
+        self->value = self->sl_value;
+    }
+    else if (!self->sl_key && self->isl_key)
+    {
+        self->advance = ADV_IMM;
+        self->key = self->isl_key;
+        self->value = self->isl_value;
+    }
+    else
+    {
+        if (variant_cmp(self->sl_key, self->isl_key) <= 0)
         {
-            buffer_clear(self->sl_key);
-            buffer_clear(self->sl_value);
+            self->advance = ADV_MEM;
+            self->key = self->sl_key;
+            self->value = self->sl_value;
         }
         else
-            break;
+        {
+            self->advance = ADV_IMM;
+            self->key = self->isl_key;
+            self->value = self->isl_value;
+        }
     }
 }
 
@@ -297,13 +391,14 @@ void db_iterator_next(DBIterator* self)
     if (self->use_memtable)
         _db_iterator_next_mem(self);
 
-    int ret = (self->prev != self->db->memtable->list->hdr) ? -1 : 1;
+    int ret = (self->list_end) ? 1 : -1;
 
-    while (self->valid && self->prev != self->db->memtable->list->hdr)
+    while (self->valid && !self->list_end)
     {
-        ret = variant_cmp(self->sl_key, self->current->current->key);
-        INFO("COMPARING: %.*s %.*s", self->sl_key->length, self->sl_key->mem, self->current->current->key->length,self->current->current->key->mem );
+        ret = variant_cmp(self->key, self->current->current->key);
+        //INFO("COMPARING: %.*s %.*s", self->key->length, self->key->mem, self->current->current->key->length,self->current->current->key->mem );
 
+        // Advance the iterator from disk until it's greater than the memtable key
         if (ret == 0)
             _db_iterator_next(self);
         else
@@ -324,19 +419,19 @@ void db_iterator_next(DBIterator* self)
 
 int db_iterator_valid(DBIterator* self)
 {
-    return (self->valid || self->prev != self->db->memtable->list->hdr);
+    return (self->valid || !self->list_end || (self->has_imm && !self->imm_list_end));
 }
 
 Variant* db_iterator_key(DBIterator* self)
 {
     if (self->use_files)
         return self->current->current->key;
-    return self->sl_key;
+    return self->key;
 }
 
 Variant* db_iterator_value(DBIterator* self)
 {
     if (self->use_files)
         return self->current->current->value;
-    return self->sl_value;
+    return self->value;
 }

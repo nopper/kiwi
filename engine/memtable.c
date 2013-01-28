@@ -13,6 +13,8 @@ MemTable* memtable_new(Log* log)
         PANIC("NULL allocation");
 
     self->list = skiplist_new(SKIPLIST_SIZE);
+    skiplist_acquire(self->list);
+
     self->needs_compaction = 0;
     self->add_count = 0;
     self->del_count = 0;
@@ -27,7 +29,12 @@ MemTable* memtable_new(Log* log)
 
 void memtable_reset(MemTable* self)
 {
+    if (self->list)
+        skiplist_release(self->list);
+
     self->list = skiplist_new(SKIPLIST_SIZE);
+    skiplist_acquire(self->list);
+
     log_next(self->log, ++self->lsn);
 
     self->needs_compaction = 0;
@@ -38,7 +45,7 @@ void memtable_reset(MemTable* self)
 void memtable_free(MemTable* self)
 {
     if (self->list)
-        skiplist_free(self->list);
+        skiplist_release(self->list);
     free(self);
 }
 

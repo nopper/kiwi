@@ -27,6 +27,8 @@ void lru_free(LRU* self)
         free(entry->start);
         free(entry);
     }
+
+    free(self);
 }
 
 static inline void _lru_cleanup(LRU* self)
@@ -39,7 +41,7 @@ static inline void _lru_cleanup(LRU* self)
     {
         HASH_DEL(self->cache, entry);
 
-        self->curr_size -= entry->stop - entry->start;
+        self->curr_size -= (char*)entry->stop - (char*)entry->start;
         self->num_entries--;
 
         free(entry->start);
@@ -59,7 +61,7 @@ void lru_set(LRU* self, CacheEntry *entry)
 
     HASH_ADD(hh, self->cache, key, KEYLEN, entry);
 
-    self->curr_size += entry->stop - entry->start;
+    self->curr_size += (char*)entry->stop - (char*)entry->start;
     self->num_entries ++;
 
     if ((HASH_COUNT(self->cache) >= self->max_entries) ||
@@ -99,7 +101,7 @@ void lru_release(LRU* self, const LookupKey* key)
     {
         HASH_DELETE(hh, self->cache, entry);
 
-        self->curr_size -= entry->stop - entry->start;
+        self->curr_size -= (char*)entry->stop - (char*)entry->start;
         self->num_entries--;
 
         free(entry->start);

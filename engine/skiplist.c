@@ -26,10 +26,47 @@ SkipList* skiplist_new(size_t max_count)
     self->hdr = arena_alloc(self->arena, SKIPNODE_SIZE + SKIPLIST_MAXLEVEL * sizeof(SkipNode*));
     self->level = 0;
 
+#ifdef BACKGROUND_MERGE
+    pthread_mutex_init(&self->lock, NULL);
+    self->refcount = 0;
+#endif
+
     for (i = 0; i <= SKIPLIST_MAXLEVEL; i++)
         self->hdr->forward[i] = self->hdr;
 
     return self;
+}
+
+void skiplist_acquire(SkipList* self)
+{
+#ifdef BACKGROUND_MERGE
+    pthread_mutex_lock(&self->lock);
+    self->refcount++;
+    pthread_mutex_unlock(&self->lock);
+#endif
+}
+
+void skiplist_release(SkipList* self)
+{
+#ifdef BACKGROUND_MERGE
+    pthread_mutex_lock(&self->lock);
+    self->refcount--;
+
+    if (self->refcount == 0)
+    {
+        INFO("SkipList refcount is at 0. Freeing up the structure");
+
+        SkipNode* first = skiplist_first(self);
+
+        for (int i = 0; i < self->count; i++)
+        {
+            free(first->data);
+            first = first->forward[0];
+        }
+        skiplist_free(self);
+    }
+    pthread_mutex_unlock(&self->lock);
+#endif
 }
 
 void skiplist_free(SkipList* self)

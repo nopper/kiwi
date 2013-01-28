@@ -13,15 +13,7 @@
 #include <snappy-c.h>
 #endif
 
-static void _release_block(SSTLoader* self, uint64_t offset, uint64_t size)
-{
-    LookupKey lru_key;
-    lru_key.filenum = self->filenum;
-    lru_key.offset = offset;
-    lru_release(self->cache, &lru_key);
-}
-
-static int _read_block(SSTLoader* self, uint64_t offset, uint64_t size, char **begin, char **end, int must_cache)
+static int _read_block(SSTLoader* self, uint64_t offset, uint64_t size, char **alloced, char **begin, char **end, int must_cache)
 {
     // If must_cache is set to 0 we are iterating over the keyspace. Skip caching but remember
     // to also free allocated strings
@@ -78,6 +70,8 @@ static int _read_block(SSTLoader* self, uint64_t offset, uint64_t size, char **b
             return 0;
         }
 
+        if (alloced)
+            *alloced = output;
         *begin = output;
         *end = output + output_length;
 
@@ -150,7 +144,7 @@ static int _load_index(SSTLoader* self, uint64_t offset, uint64_t size)
         entry = calloc(1, sizeof(IndexEntry));
 
         start += 1; // Skip the first character. We do not have any kind of shared
-        start = get_varint32(start, start + 5, &entry->klen);
+        start = get_varint32(start, start + 5, (uint32_t*)&entry->klen);
         start = get_varint32(start, start + 5, &vlen);
 
         entry->key = malloc(sizeof(char) * entry->klen);
@@ -352,7 +346,7 @@ int sst_loader_get(SSTLoader* self, Variant* key, Variant* value, OPT* opt)
 
     int ret = -2;
     char *start = NULL, *stop = NULL, *iter;
-    _read_block(self, entry->offset, entry->size, &start, &stop, 1);
+    _read_block(self, entry->offset, entry->size, NULL, &start, &stop, 1);
 
     uint32_t num_restarts = get_int32(stop - sizeof(uint32_t));
     stop -= sizeof(uint32_t) * (num_restarts + 1);
@@ -436,11 +430,10 @@ int sst_loader_get(SSTLoader* self, Variant* key, Variant* value, OPT* opt)
 
 static uint32_t _sst_loader_read_block(SSTLoaderIterator* iter, IndexEntry* entry)
 {
-    _read_block(iter->loader, entry->offset, entry->size, &iter->start, &iter->stop, 0);
-
     // NOTE: The current keep track of the beginning of the block and it is used
     // to release the string allocated in _read_block when must_cache is set to 0
-    iter->current = iter->start;
+    iter->current = NULL;
+    _read_block(iter->loader, entry->offset, entry->size, &iter->current, &iter->start, &iter->stop, 0);
 
     // We need to skip restart pointer since we are just iterating over the structure
     // at least for now
@@ -457,7 +450,7 @@ static void _sst_loader_iterator_next_block(SSTLoaderIterator* iter)
 
     if (iter->prev_block >= 0)
     {
-        IndexEntry* entry = kv_A(iter->loader->index, iter->prev_block);
+        //IndexEntry* entry = kv_A(iter->loader->index, iter->prev_block);
         free(iter->current);
         //_release_block(iter->loader, entry->offset, entry->size, 0);
     }
@@ -590,18 +583,7 @@ SSTLoaderIterator* sst_loader_iterator(SSTLoader* self)
 void sst_loader_iterator_free(SSTLoaderIterator *iter)
 {
     if (iter->prev_block >= 0)
-    {
-        IndexEntry* entry = kv_A(iter->loader->index, iter->prev_block);
         free(iter->current);
-        //_release_block(iter->loader, entry->offset, entry->size, 0);
-    }
-
-    if (iter->block >= 0 && iter->block < kv_size(iter->loader->index))
-    {
-        IndexEntry* entry = kv_A(iter->loader->index, iter->block);
-        //free(entry->current);
-        //_release_block(iter->loader, entry->offset, entry->size, 0);
-    }
 
     buffer_free(iter->key);
     buffer_free(iter->value);

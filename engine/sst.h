@@ -60,6 +60,7 @@ typedef struct _sst {
 #ifdef BACKGROUND_MERGE
     MemTable* immutable;
     SkipList* immutable_list;
+    pthread_mutex_t immutable_lock;
 
     pthread_mutex_t lock;
 

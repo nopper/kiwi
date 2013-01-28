@@ -17,32 +17,6 @@
 #include "vector.h"
 #include "compaction.h"
 
-static uint64_t _prettify(uint64_t size, char const** metric)
-{
-    static const char* metrics[] = {
-        "bytes",
-        "KiB",
-        "MiB",
-        "GiB",
-        "TiB",
-        NULL
-    };
-
-
-    unsigned offset = 0;
-
-    while (size > 1024) {
-        size /= 1024;
-        offset++;
-    }
-
-    INFO("BYTES %d OFFSET %d", size, offset);
-
-    *metric = metrics[offset];
-
-    return size;
-}
-
 static uint64_t _size_for_level(SST* self, uint32_t level)
 {
     uint64_t size = 0;
@@ -158,7 +132,6 @@ void sst_merge_real(SST* self, SkipList* list);
 static void merge_thread(void* data)
 {
     SST* sst = (SST*)data;
-    int rt;
 
     while (1)
     {
@@ -194,20 +167,8 @@ static void merge_thread(void* data)
 
             sst_merge_real(sst, sst->immutable_list);
 
-            SkipList* toclean = sst->immutable_list;
-
-            INFO("Merge successfully completed");
-            INFO("Freeing up immutable skiplist");
-
-            SkipNode* first = skiplist_first(toclean);
-
-            for (int i = 0; i < toclean->count; i++)
-            {
-                free(first->data);
-                first = first->forward[0];
-            }
-
-            skiplist_free(toclean);
+            INFO("Merge successfully completed. Releasing the skiplist");
+            skiplist_release(sst->immutable_list);
         }
 
         if ((sst->merge_state & MERGE_STATUS_EXIT) == MERGE_STATUS_EXIT)
@@ -234,10 +195,14 @@ static void merge_thread(void* data)
             sst_compact(sst);
         }
 
+        pthread_mutex_lock(&sst->immutable_lock);
+
         sst->immutable = NULL;
         sst->immutable_list = NULL;
+
+        pthread_mutex_unlock(&sst->immutable_lock);
+
         sst->merge_state = 0;
-exit:
 
         pthread_mutex_unlock(&sst->cv_lock);
     }
@@ -261,7 +226,7 @@ static void _sort_files(SST* self)
     {
         qsort(self->files[level], self->num_files[level],
               sizeof(SSTMetadata**),
-              _cmp_metadata_by_smallest_key);
+             (int (*)(const void *, const void*))_cmp_metadata_by_smallest_key);
     }
 
     _print_summary(self);
@@ -361,7 +326,7 @@ static int _read_manifest(SST* self)
             buffer_putnstr(meta->largest_key, start, len);
             start += len;
 
-            start = get_varint32(start, start + 5, &meta->allowed_seeks);
+            start = get_varint32(start, start + 5, (uint32_t *)&meta->allowed_seeks);
 
             INFO("Loading SST file %s for level %d %ld bytes", file->filename, curr_level, file_size(file));
 
@@ -435,9 +400,10 @@ SST* sst_new(const char* basedir, uint64_t cache_size)
 
     pthread_mutex_init(&self->lock, NULL);
     pthread_mutex_init(&self->cv_lock, NULL);
+    pthread_mutex_init(&self->immutable_lock, NULL);
     pthread_cond_init(&self->cv, NULL);
 
-    pthread_create(&self->merge_thread, NULL, merge_thread, self);
+    pthread_create(&self->merge_thread, NULL, (void *(*)(void *))merge_thread, self);
 #endif
 
     return self;
@@ -588,10 +554,6 @@ static void _sst_merge_into(SST* self, SkipNode* node, SkipNode* last, size_t co
             buffer_putnstr(meta->largest_key, key->mem, key->length);
 
         sst_builder_add(builder, key, value, opt);
-
-#ifndef BACKGROUND_MERGE
-        free(node->data);
-#endif
         node = node->forward[0];
     }
 
@@ -624,8 +586,15 @@ void sst_merge(SST* self, MemTable* mem)
     }
 
     // We need to get a reference to the skiplist and to the logfile
+    pthread_mutex_lock(&self->immutable_lock);
+
     self->immutable = mem;
     self->immutable_list = mem->list;
+    skiplist_acquire(mem->list);
+
+    INFO("IN sst_merge the REFCOUNT IS at %d", mem->list->refcount);
+
+    pthread_mutex_unlock(&self->immutable_lock);
 
     self->merge_state |= MERGE_STATUS_INPUT;
 
@@ -723,7 +692,7 @@ int sst_get(SST* self, Variant* key, Variant* value)
 
             qsort(vector_data(self->targets),
                   vector_count(self->targets),
-                  sizeof(SSTMetadata**), _compare_by_latest);
+                  sizeof(SSTMetadata**), (int(*)(const void*, const void*))_compare_by_latest);
         }
         else
         {

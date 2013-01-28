@@ -30,6 +30,11 @@ Log* log_new(const char *basedir)
     return self;
 }
 
+void log_free(Log* self)
+{
+    free(self);
+}
+
 void log_remove(Log* self, int lsn)
 {
     char log_name[MAX_FILENAME];

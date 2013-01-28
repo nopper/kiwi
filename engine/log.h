@@ -13,6 +13,7 @@ typedef struct _log {
 } Log;
 
 Log* log_new(const char *basedir);
+void log_free(Log* self);
 void log_next(Log* self, int lsn);
 int log_recovery(Log* self, SkipList* list);
 int log_append(Log* self, char *value, size_t length);

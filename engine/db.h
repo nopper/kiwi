@@ -27,15 +27,34 @@ typedef struct _db_iterator {
 
     unsigned use_memtable:1;
     unsigned use_files:1;
+    unsigned has_imm:1;
 
     Heap* minheap;
     Vector* iterators;
 
     SkipNode* node;
+    SkipNode* imm_node;
     SkipNode* prev;
+    SkipNode* imm_prev;
+
+    SkipList* list;
+    SkipList* imm_list;
+
+    unsigned list_end:1;
+    unsigned imm_list_end:1;
+    unsigned advance;
+
+#define ADV_MEM 1
+#define ADV_IMM 2
 
     Variant* sl_key;
     Variant* sl_value;
+
+    Variant* isl_key;
+    Variant* isl_value;
+
+    Variant* key;
+    Variant* value;
 
     ChainedIterator* current;
 } DBIterator;

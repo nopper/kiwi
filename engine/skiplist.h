@@ -1,6 +1,7 @@
 #ifndef __SKIPLIST_H__
 #define __SKIPLIST_H__
 
+#include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include "arena.h"
@@ -27,8 +28,13 @@ typedef struct _skiplist {
     unsigned int cum_key_length; // used to evaluate avg key len
     size_t wasted_bytes;     // how many bytes are unallocated and fragments
     size_t allocated;
-    // the data structure
 
+#ifdef BACKGROUND_MERGE
+    pthread_mutex_t lock;
+    int refcount;
+#endif
+
+    // the data structure
     SkipNode* hdr;
     Arena* arena;
 } SkipList;
@@ -46,6 +52,9 @@ void skiplist_free(SkipList* self);
 
 SkipNode* skiplist_first(SkipList* self);
 SkipNode* skiplist_last(SkipList* self);
+
+void skiplist_acquire(SkipList* self);
+void skiplist_release(SkipList* self);
 
 
 #endif

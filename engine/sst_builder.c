@@ -22,7 +22,7 @@ static void shortest_separator(Variant *last_key, Variant *new_key)
     } else {
         while (diff_index < min_length)
         {
-            if (last_key->mem[diff_index] < 0xff &&
+            if (last_key->mem[diff_index] < (char)0xff &&
                 last_key->mem[diff_index] + 1 < new_key->mem[diff_index])
             {
                 last_key->mem[diff_index]++;
@@ -34,16 +34,6 @@ static void shortest_separator(Variant *last_key, Variant *new_key)
     }
 
 //    DEBUG("Shortest separator result: %.*s", last_key->length, last_key->mem);
-}
-
-static void short_successor(Variant *last_key)
-{
-    for (size_t i = 0; i < last_key->length; i++)
-    {
-        if (last_key->mem[i] != 0xff)
-            last_key->mem[i]++;
-        last_key->length = i + 1;
-    }
 }
 
 static void _write_block(SSTBuilder* self, SSTBlockBuilder* block, int skip_comp)

@@ -95,7 +95,7 @@ ChainedIterator* chained_iterator_new_seek(uint32_t num_files, SSTMetadata** fil
 
     DEBUG("Creating a chained iterator of %d files (seek: %.*s)", num_files, key->length, key->mem);
     for (int i = 0; i < num_files; i++)
-        DEBUG("  => %d", (SSTMetadata**)files[i]->filenum);
+        DEBUG("  => %d", files[i]->filenum);
     return iterator;
 }
 
