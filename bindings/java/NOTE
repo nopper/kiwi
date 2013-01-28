@@ -1,0 +1,16 @@
+You have to copy this stuff inside gremlin in order to use the kiwi backend
+
+cp native/mac/target/libjniKiwiNative.dylib gremlin/lib
+cp java/target/jniKiwiJava-1.0-SNAPSHOT.jar gremlin/lib
+cp bluekiwi/target/bluekiwi-0.1.jar gremlin/lib
+
+common-collections.jar must be present inside lib
+
+
+Also remember to load the packages:
+
+==>import com.kv.kiwi.*;
+==>import com.kv.kiwi.bluekiwi.*;
+gremlin> g = new KiwiGraph('/tmp')                
+==>vertices[1]-edges[1]
+gremlin> g.loadGraphML('data/graph-example-1.xml')

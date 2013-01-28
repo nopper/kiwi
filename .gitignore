@@ -15,7 +15,10 @@ kvbench/src/testdb
 bindings/java/bluekiwi/target
 bindings/java/java/target
 bindings/java/native/linux/target
+bindings/java/native/mac/target
+bindings/java/gremlin/
 bindings/python/build/
+bindings/bench/my-app/target
 .classpath
 .project
 .settings

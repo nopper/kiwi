@@ -1,4 +1,5 @@
 import sys
+import time
 import xml.sax
 from time import time
 from decorators import lfu_cache
@@ -39,6 +40,17 @@ class GraphMLHandler(xml.sax.ContentHandler):
         }
 
         self.start = None
+        self.ts_start = time()
+
+    def finish(self):
+        print "Flushing cache..."
+
+        for count, (key, vertex) in enumerate(self.get_vertex.cache.items()):
+            vertex.save()
+            vertex.save_properties()
+
+        print "%d objects saved" % (count + 1)
+        print "Finished after", time() - self.ts_start
 
     @lfu_cache(200000)
     def get_vertex(self, id):
@@ -146,6 +158,7 @@ def main(filename, graphpath):
     with open(filename, 'r') as inp:
         xml.sax.parse(inp, handler)
 
+    handler.finish()
     handler.graph.shutdown()
 
 

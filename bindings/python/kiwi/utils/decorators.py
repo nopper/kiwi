@@ -131,5 +131,6 @@ def lfu_cache(maxsize=100):
 
         wrapper.hits = wrapper.misses = 0
         wrapper.clear = clear
+        wrapper.cache = cache
         return wrapper
     return decorating_function

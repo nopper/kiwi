@@ -36,7 +36,7 @@ class KiwiVertex(kiwi.element.KiwiElement):
         try:
             if not labels:
                 return itertools.imap(lambda id: kiwi.edge.KiwiEdge(self.graph, id), it)
-            
+
             return itertools.ifilter(
                 lambda e: e.getLabel() in labels,
                 itertools.imap(lambda id: kiwi.edge.KiwiEdge(self.graph, id), it)

@@ -88,13 +88,13 @@ class KiwiGraph(object):
 if __name__ == "__main__":
     g = KiwiGraph('/tmp')
 
-    assert map(lambda v: v.getId(), g.v(1).outV()) == [2, 4, 3]
-    assert g.e(12).outV().getId() == 6
-    assert g.e(12).inV().getId() == 3
-    assert map(lambda v: v.getId(), g.e(12).bothV()) == [6, 3]
-    assert map(lambda v: v.getId(), g.v(3).inV(["created"])) == [1, 4, 6]
-    assert map(lambda e: e.outV().getId(), g.v(3).inE(["created"])) == [1, 4, 6]
+    #assert map(lambda v: v.getId(), g.v(1).outV()) == [2, 4, 3]
+    #assert g.e(12).outV().getId() == 6
+    #assert g.e(12).inV().getId() == 3
+    #assert map(lambda v: v.getId(), g.e(12).bothV()) == [6, 3]
+    #assert map(lambda v: v.getId(), g.v(3).inV(["created"])) == [1, 4, 6]
+    #assert map(lambda e: e.outV().getId(), g.v(3).inE(["created"])) == [1, 4, 6]
 
-    # import readline
-    # from code import InteractiveConsole
-    # InteractiveConsole(locals()).interact("v.getEdges('OUT', ['knows'])")
+    import readline
+    from code import InteractiveConsole
+    InteractiveConsole(locals()).interact("v.getEdges('OUT', ['knows'])")

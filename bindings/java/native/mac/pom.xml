@@ -10,7 +10,7 @@
   <version>0.0.1-SNAPSHOT</version>
   <name>JNI wrapper for Kiwi database - Linux</name>
   <url>http://maven.apache.org</url>
-  <packaging>so</packaging>
+  <packaging>dylib</packaging>
   <dependencies>
     <dependency>
       <groupId>com.kv.kiwi</groupId>
@@ -27,10 +27,10 @@
         <artifactId>native-maven-plugin</artifactId>
         <extensions>true</extensions>
         <configuration>
-          <javahOS>macos</javahOS>
+          <javahOS>mac</javahOS>
           <compilerProvider>generic-classic</compilerProvider>
-          <compilerExecutable>gcc</compilerExecutable>
-          <linkerExecutable>gcc</linkerExecutable>
+          <compilerExecutable>cc</compilerExecutable>
+          <linkerExecutable>cc</linkerExecutable>
           <sources>
             <source>
               <directory>../src/</directory>
@@ -46,16 +46,15 @@
             </source>
           </sources>
           <compilerStartOptions>
-            <compilerStartOption>-lsnappy -lpthread -lstdc++ -std=c99 -O3 -fomit-frame-pointer</compilerStartOption>
+            <compilerStartOption>-I/System/Library/Frameworks/JavaVM.framework/Headers -lsnappy -lpthread -lstdc++ -std=c99 -O3 -fomit-frame-pointer</compilerStartOption>
           </compilerStartOptions>
           <linkerStartOptions>
-            <linkerStartOption>-shared</linkerStartOption>
+            <linkerStartOption>-dynamiclib </linkerStartOption>
           </linkerStartOptions>
           <linkerEndOptions>
             <linkerEndOption>-lsnappy</linkerEndOption>
             <linkerEndOption>-lpthread</linkerEndOption>
             <linkerEndOption>-lstdc++</linkerEndOption>
-            <linkerEndOption>-Wl,-soname,libsnappy.so -Wl,--no-undefined</linkerEndOption>
           </linkerEndOptions>
         </configuration>
         <executions>

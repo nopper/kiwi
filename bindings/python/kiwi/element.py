@@ -28,10 +28,13 @@ class KiwiElement(object):
 
     def __del__(self):
         if self.needs_save:
-            self.needs_save = False
-            for key, value in self.props.iteritems():
-                value = getattr(self, 'save_' + key, lambda x: x)(value)
-                self.db.add(self.path_for(key), dumps(value))
+            self.save_properties()
+
+    def save_properties(self):
+        self.needs_save = False
+        for key, value in self.props.iteritems():
+            value = getattr(self, 'save_' + key, lambda x: x)(value)
+            self.db.add(self.path_for(key), dumps(value))
 
     def getProperty(self, key, default=None):
         try:
